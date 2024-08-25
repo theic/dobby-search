@@ -21,8 +21,8 @@
       "@config/*": [
         "src/config/*"
       ],
-      "@firestore/*": [
-        "src/firestore/*"
+      "@firebase/*": [
+        "src/firebase/*"
       ],
       "@modules/*": [
         "src/modules/*"

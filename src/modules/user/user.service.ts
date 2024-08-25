@@ -1,38 +1,59 @@
-import { Injectable } from '@nestjs/common';
-import { Firestore } from '@google-cloud/firestore';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { UserRepository } from './user.repository';
+import { User } from './user.model';
+import { CreateUserDto, UpdateUserDto } from './dto';
 
 @Injectable()
 export class UserService {
-  private collection: FirebaseFirestore.CollectionReference;
+  constructor(private userRepository: UserRepository) {}
 
-  constructor(private firestore: Firestore) {
-    this.collection = this.firestore.collection('users');
+  async createUser(createUserDto: CreateUserDto): Promise<User> {
+    return this.userRepository.create(createUserDto);
   }
 
-  async createUser(data: any): Promise<string> {
-    const docRef = this.collection.doc();
-    await docRef.set(data);
-    return docRef.id;
+  async getAllUsers(): Promise<User[]> {
+    return this.userRepository.findAll();
   }
 
-  async getUser(userId: string): Promise<any> {
-    const docRef = this.collection.doc(userId);
-    const doc = await docRef.get();
-    if (!doc.exists) {
-      throw new Error('User not found');
+  async getUserById(id: string): Promise<User> {
+    const user = await this.userRepository.findById(id);
+    if (!user) {
+      throw new NotFoundException(`User with ID "${id}" not found`);
     }
-    return doc.data();
+    return user;
   }
 
-  async updateUser(userId: string, data: any): Promise<void> {
-    const docRef = this.collection.doc(userId);
-    await docRef.update(data);
+  async updateUser(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+    const updatedUser = await this.userRepository.update(id, updateUserDto);
+    if (!updatedUser) {
+      throw new NotFoundException(`User with ID "${id}" not found`);
+    }
+    return updatedUser;
   }
 
-  async deleteUser(userId: string): Promise<void> {
-    const docRef = this.collection.doc(userId);
-    await docRef.delete();
+  async deleteUser(id: string): Promise<void> {
+    await this.getUserById(id); // This will throw NotFoundException if user doesn't exist
+    await this.userRepository.delete(id);
   }
 
-  // Additional user-related operations as needed
+  async findOrCreateUser(userData: {
+    telegramId: number;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+  }): Promise<User> {
+    let user = await this.userRepository.findByTelegramId(userData.telegramId);
+
+    if (!user) {
+      const createUserDto: CreateUserDto = {
+        telegramId: userData.telegramId,
+        username: userData.username,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+      };
+      user = await this.createUser(createUserDto);
+    }
+
+    return user;
+  }
 }
