@@ -56,4 +56,19 @@ export class UserService {
 
     return user;
   }
+
+  async updateUserAssistantInfo(
+    userId: string,
+    assistantId: string,
+    threadId: string,
+  ): Promise<User> {
+    return this.userRepository.update(userId, { assistantId, threadId });
+  }
+
+  async getUserAssistantInfo(
+    userId: string,
+  ): Promise<{ assistantId: string; threadId: string }> {
+    const user = await this.getUserById(userId);
+    return { assistantId: user.assistantId, threadId: user.threadId };
+  }
 }

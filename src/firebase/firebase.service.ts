@@ -8,7 +8,7 @@ export class FirebaseService {
 
   constructor(private readonly configService: ConfigService) {
     const { projectId, clientEmail, privateKey } =
-      this.configService.getOrThrow('firebase');
+      this.configService.get('firebase');
 
     admin.initializeApp({
       credential: admin.credential.cert({

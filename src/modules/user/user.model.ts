@@ -4,4 +4,6 @@ export interface User {
   username?: string;
   firstName?: string;
   lastName?: string;
+  assistantId?: string;
+  threadId?: string;
 }

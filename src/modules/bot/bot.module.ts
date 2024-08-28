@@ -4,6 +4,7 @@ import { BotService } from './bot.service';
 import BotConfig from '@config/bot.config';
 import { UserModule } from '@modules/user/user.module';
 import { FirebaseModule } from '@firebase/firebase.module';
+import { AssistantModule } from '@modules/assistant/assistant.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { FirebaseModule } from '@firebase/firebase.module';
     }),
     UserModule,
     FirebaseModule,
+    AssistantModule,
   ],
   providers: [BotService],
 })
