@@ -90,6 +90,13 @@ export class AssistantService {
     return response.data;
   }
 
+  async getAssistant(assistantId: string) {
+    const response = await firstValueFrom(
+      this.httpService.get(`${this.baseUrl}/assistants/${assistantId}`),
+    );
+    return response.data;
+  }
+
   async runAssistantStream({ threadId, messages }: RunAssistantDto) {
     const response = await lastValueFrom(
       this.httpService.post(`${this.baseUrl}/runs/stream`, {
