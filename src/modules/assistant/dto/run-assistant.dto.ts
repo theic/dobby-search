@@ -1,5 +1,7 @@
 export class RunAssistantDto {
   threadId: string;
-  userId: string;
-  messages: { type: 'human' | 'ai'; content: string }[];
+  assistantId: string;
+  input: any;
+  metadata: any;
+  config: any;
 }

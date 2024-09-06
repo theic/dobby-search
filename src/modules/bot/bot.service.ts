@@ -33,8 +33,7 @@ export class BotService {
       const assistant = await this.assistantService.getAssistant(assistantId);
       const thread = await this.assistantService.createThread({
         assistantId: assistant.assistant_id,
-        name: 'Telegram Thread',
-        userId: user.id,
+        metadata: { name: 'Telegram Thread' },
       });
       await this.userService.updateUserAssistantInfo(
         user.id,
@@ -42,7 +41,7 @@ export class BotService {
         thread.thread_id,
       );
       await ctx.reply(
-        `Welcome! You've been connected to the "${assistant.name}" assistant. How can I help you?`,
+        `Welcome! You've been connected to the "${assistant.graph_id}" assistant. How can I help you?`,
       );
     } catch (error) {
       console.error('Error handling deep link:', error);
@@ -54,8 +53,10 @@ export class BotService {
 
   private async handleRegularStart(ctx: Context, user: any) {
     const assistant = await this.assistantService.createAssistant({
-      name: 'Telegram Bot Assistant',
+      graph_id: 'simple_agent',
       config: {
+        tags: ['telegram', 'bot'],
+        recursion_limit: 5,
         configurable: {
           type: 'chatbot',
           'type==agent/agent_type': 'GPT 4o',
@@ -70,12 +71,11 @@ export class BotService {
           'type==chatbot/system_message': 'You are a helpful assistant.',
         },
       },
-      userId: user.id,
+      metadata: { createdBy: user.id },
     });
     const thread = await this.assistantService.createThread({
       assistantId: assistant.assistant_id,
-      name: 'Telegram Thread',
-      userId: user.id,
+      metadata: { name: 'Telegram Thread' },
     });
     await this.userService.updateUserAssistantInfo(
       user.id,
@@ -109,8 +109,10 @@ export class BotService {
     try {
       await this.assistantService.updateAssistant({
         assistantId,
-        name: 'Telegram Bot Assistant',
+        graph_id: 'simple_agent',
         config: {
+          tags: ['telegram', 'bot'],
+          recursion_limit: 5,
           configurable: {
             type: 'chatbot',
             'type==agent/agent_type': 'Claude 2',
@@ -126,6 +128,7 @@ export class BotService {
             'type==chatbot/system_message': newInstructions,
           },
         },
+        metadata: { updatedBy: user.id },
       });
 
       await ctx.reply('Assistant instructions updated successfully!');
@@ -142,25 +145,36 @@ export class BotService {
     const user = await this.handleUser(ctx);
     const message = ctx.message['text'];
 
-    const { threadId } = await this.userService.getUserAssistantInfo(user.id);
+    const { threadId, assistantId } =
+      await this.userService.getUserAssistantInfo(user.id);
 
-    const runResult = await this.assistantService.runAssistantStream({
+    const runResult = await this.assistantService.runAssistant({
       threadId,
-      userId: user.id,
-      messages: [{ type: 'human', content: message }],
+      assistantId,
+      input: {
+        messages: {
+          role: 'user',
+          content: message,
+        },
+      },
+      metadata: {},
+      config: {},
     });
 
     console.log('runResult', runResult);
 
     const threadState = await this.assistantService.getThreadState({
       threadId,
-      userId: user.id,
     });
 
     console.log('threadState', threadState);
+    console.log('threadState/messages', threadState.values.messages);
 
     const aiResponse =
-      threadState.values[threadState.values.length - 1].content;
+      threadState.values.messages.length > 0
+        ? threadState.values.messages[threadState.values.messages.length - 1]
+            .content
+        : 'Sorry, no response from the assistant.';
 
     await ctx.reply(aiResponse);
   }

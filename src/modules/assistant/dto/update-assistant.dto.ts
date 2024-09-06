@@ -1,5 +1,6 @@
 export class UpdateAssistantDto {
   assistantId: string;
-  name: string;
+  graph_id: string;
   config: any;
+  metadata: any;
 }

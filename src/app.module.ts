@@ -5,13 +5,13 @@ import { BotModule } from '@modules/bot';
 import BotConfig from '@config/bot.config';
 import { FirebaseConfig } from '@config/firebase.config';
 import { ConfigModule } from '@nestjs/config';
-import { OpenGptsConfig } from '@config/opengpts.config';
+import { AssistantConfig } from '@config/assistant.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [BotConfig, FirebaseConfig, OpenGptsConfig],
+      load: [BotConfig, FirebaseConfig, AssistantConfig],
     }),
     FirebaseModule,
     UserModule,

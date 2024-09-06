@@ -1,13 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { firstValueFrom, lastValueFrom } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import {
   CreateAssistantDto,
   CreateThreadDto,
   GetThreadStateDto,
   RunAssistantDto,
   UpdateAssistantDto,
+  UpdateThreadStateDto,
 } from './dto';
 
 @Injectable()
@@ -18,22 +19,21 @@ export class AssistantService {
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
-    this.baseUrl = this.configService.get('opengpts').baseUrl;
+    this.baseUrl = this.configService.get('assistant').baseUrl;
   }
 
-  async createAssistant({ name, config, userId }: CreateAssistantDto) {
+  async createAssistant({ graph_id, config, metadata }: CreateAssistantDto) {
     const response = await firstValueFrom(
       this.httpService.post(
         `${this.baseUrl}/assistants`,
         {
-          name,
+          graph_id,
           config,
-          public: false,
+          metadata,
         },
         {
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${userId}`,
           },
         },
       ),
@@ -41,28 +41,33 @@ export class AssistantService {
     return response.data;
   }
 
-  async updateAssistant({ assistantId, name, config }: UpdateAssistantDto) {
+  async updateAssistant({
+    assistantId,
+    graph_id,
+    config,
+    metadata,
+  }: UpdateAssistantDto) {
     const response = await firstValueFrom(
-      this.httpService.put(`${this.baseUrl}/assistants/${assistantId}`, {
-        name,
+      this.httpService.patch(`${this.baseUrl}/assistants/${assistantId}`, {
+        graph_id,
         config,
+        metadata,
       }),
     );
     return response.data;
   }
 
-  async createThread({ assistantId, name, userId }: CreateThreadDto) {
+  async createThread({ assistantId, metadata }: CreateThreadDto) {
     const response = await firstValueFrom(
       this.httpService.post(
         `${this.baseUrl}/threads`,
         {
-          name,
           assistant_id: assistantId,
+          metadata,
         },
         {
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${userId}`,
           },
         },
       ),
@@ -70,24 +75,36 @@ export class AssistantService {
     return response.data;
   }
 
-  async runAssistant({ threadId, userId, messages }: RunAssistantDto) {
-    console.debug('runAssistant', threadId, { messages });
-    const response = await firstValueFrom(
-      this.httpService.post(
-        `${this.baseUrl}/runs`,
-        {
-          thread_id: threadId,
-          input: messages,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${userId}`,
+  async runAssistant({
+    threadId,
+    assistantId,
+    input,
+    metadata,
+    config,
+  }: RunAssistantDto) {
+    console.debug('runAssistant', threadId, { input });
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(
+          `${this.baseUrl}/threads/${threadId}/runs/wait`,
+          {
+            assistant_id: assistantId,
+            input,
+            metadata,
+            config,
           },
-        },
-      ),
-    );
-    return response.data;
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          },
+        ),
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error running assistant:', error);
+      throw new Error('Failed to run assistant');
+    }
   }
 
   async getAssistant(assistantId: string) {
@@ -97,17 +114,7 @@ export class AssistantService {
     return response.data;
   }
 
-  async runAssistantStream({ threadId, messages }: RunAssistantDto) {
-    const response = await lastValueFrom(
-      this.httpService.post(`${this.baseUrl}/runs/stream`, {
-        thread_id: threadId,
-        input: messages,
-      }),
-    );
-    return response.data;
-  }
-
-  async getThreadState({ threadId, userId }: GetThreadStateDto) {
+  async getThreadState({ threadId }: GetThreadStateDto) {
     console.debug(
       'getThreadState',
       threadId,
@@ -117,9 +124,32 @@ export class AssistantService {
       this.httpService.get(`${this.baseUrl}/threads/${threadId}/state`, {
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${userId}`,
         },
       }),
+    );
+    return response.data;
+  }
+
+  async updateThreadState({
+    threadId,
+    values,
+    checkpoint_id,
+    as_node,
+  }: UpdateThreadStateDto) {
+    const response = await firstValueFrom(
+      this.httpService.post(
+        `${this.baseUrl}/threads/${threadId}/state`,
+        {
+          values,
+          checkpoint_id,
+          as_node,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
+      ),
     );
     return response.data;
   }
