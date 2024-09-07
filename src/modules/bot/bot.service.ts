@@ -41,6 +41,9 @@ export class BotService {
 
   @On('message')
   async onMessage(@Ctx() ctx: Context) {
+    // Set bot to 'typing' status
+    await ctx.sendChatAction('typing');
+
     const user = await this.handleUser(ctx);
     const message = ctx.message['text'];
 
@@ -90,6 +93,7 @@ export class BotService {
       threadId,
     });
 
+    // Send the reply (this automatically removes the 'typing' status)
     await ctx.reply(aiResponse);
   }
 
