@@ -44,21 +44,12 @@ export class UserService {
     await this.userRepository.delete(id);
   }
 
-  async findOrCreateUser(userData: {
-    telegramId: number;
-    username?: string;
-    firstName?: string;
-    lastName?: string;
-  }): Promise<User> {
-    let user = await this.userRepository.findByTelegramId(userData.telegramId);
+  async findOrCreateUser(createUserDto: CreateUserDto): Promise<User> {
+    let user = await this.userRepository.findByTelegramId(
+      createUserDto.telegramId,
+    );
 
     if (!user) {
-      const createUserDto: CreateUserDto = {
-        telegramId: userData.telegramId,
-        username: userData.username,
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-      };
       user = await this.createUser(createUserDto);
     }
 

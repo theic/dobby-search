@@ -125,6 +125,7 @@ export class BotService {
       username: ctx.from.username,
       firstName: ctx.from.first_name || '',
       lastName: ctx.from.last_name || '',
+      languageCode: ctx.from.language_code || '',
     });
 
     return user;

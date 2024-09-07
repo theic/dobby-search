@@ -7,5 +7,6 @@ export interface User {
   username?: string;
   firstName?: string;
   lastName?: string;
+  languageCode?: string; // Added language_code
   threads?: Record<string, string>; // Key: assistantId, Value: threadId
 }

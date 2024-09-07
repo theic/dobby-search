@@ -1,8 +1,12 @@
-import { IsNotEmpty, IsOptional, IsString, IsObject } from 'class-validator';
+import { IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
 
 export class CreateUserDto {
   @IsNotEmpty()
   telegramId: number;
+
+  @IsOptional()
+  @IsString()
+  languageCode?: string;
 
   @IsOptional()
   @IsString()
