@@ -1,0 +1,6 @@
+steps:
+- name: 'gcr.io/cloudbuild/docker'
+  args: ['build', '-t', 'us-docker.pkg.dev/your-project-id/your-repo/my-nestjs-app', '.']
+- name: 'gcr.io/cloudbuild/docker'
+  args: ['push', 'us-docker.pkg.dev/your-project-id/your-repo/my-nestjs-app']
+images: ['us-docker.pkg.dev/your-project-id/your-repo/my-nestjs-app']
