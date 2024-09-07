@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { AssistantConfig } from '@config/assistant.config';
 import { HttpService } from '@nestjs/axios';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ConfigType } from '@shared/enum';
 import { firstValueFrom } from 'rxjs';
 import {
   CreateAssistantDto,
@@ -13,28 +15,23 @@ import {
 
 @Injectable()
 export class AssistantService {
-  private readonly baseUrl: string;
+  private readonly assistantConfig: AssistantConfig;
+  private readonly logger = new Logger(AssistantService.name);
 
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
-    this.baseUrl = this.configService.get('assistant').baseUrl;
+    this.assistantConfig = this.configService.get(ConfigType.ASSISTANT);
   }
 
   async createAssistant({ graph_id, config, metadata }: CreateAssistantDto) {
     const response = await firstValueFrom(
       this.httpService.post(
-        `${this.baseUrl}/assistants`,
+        `${this.assistantConfig.baseUrl}/assistants`,
+        { graph_id, config, metadata },
         {
-          graph_id,
-          config,
-          metadata,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: this.getHeaders(),
         },
       ),
     );
@@ -48,11 +45,13 @@ export class AssistantService {
     metadata,
   }: UpdateAssistantDto) {
     const response = await firstValueFrom(
-      this.httpService.patch(`${this.baseUrl}/assistants/${assistantId}`, {
-        graph_id,
-        config,
-        metadata,
-      }),
+      this.httpService.patch(
+        `${this.assistantConfig.baseUrl}/assistants/${assistantId}`,
+        { graph_id, config, metadata },
+        {
+          headers: this.getHeaders(),
+        },
+      ),
     );
     return response.data;
   }
@@ -60,15 +59,10 @@ export class AssistantService {
   async createThread({ assistantId, metadata }: CreateThreadDto) {
     const response = await firstValueFrom(
       this.httpService.post(
-        `${this.baseUrl}/threads`,
+        `${this.assistantConfig.baseUrl}/threads`,
+        { assistant_id: assistantId, metadata },
         {
-          assistant_id: assistantId,
-          metadata,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: this.getHeaders(),
         },
       ),
     );
@@ -86,30 +80,28 @@ export class AssistantService {
     try {
       const response = await firstValueFrom(
         this.httpService.post(
-          `${this.baseUrl}/threads/${threadId}/runs/wait`,
+          `${this.assistantConfig.baseUrl}/threads/${threadId}/runs/wait`,
+          { assistant_id: assistantId, input, metadata, config },
           {
-            assistant_id: assistantId,
-            input,
-            metadata,
-            config,
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: this.getHeaders(),
           },
         ),
       );
       return response.data;
     } catch (error) {
-      console.error('Error running assistant:', error);
+      this.logger.error(error);
       throw new Error('Failed to run assistant');
     }
   }
 
   async getAssistant(assistantId: string) {
     const response = await firstValueFrom(
-      this.httpService.get(`${this.baseUrl}/assistants/${assistantId}`),
+      this.httpService.get(
+        `${this.assistantConfig.baseUrl}/assistants/${assistantId}`,
+        {
+          headers: this.getHeaders(),
+        },
+      ),
     );
     return response.data;
   }
@@ -118,14 +110,15 @@ export class AssistantService {
     console.debug(
       'getThreadState',
       threadId,
-      `${this.baseUrl}/threads/${threadId}/state`,
+      `${this.assistantConfig.baseUrl}/threads/${threadId}/state`,
     );
     const response = await firstValueFrom(
-      this.httpService.get(`${this.baseUrl}/threads/${threadId}/state`, {
-        headers: {
-          'Content-Type': 'application/json',
+      this.httpService.get(
+        `${this.assistantConfig.baseUrl}/threads/${threadId}/state`,
+        {
+          headers: this.getHeaders(),
         },
-      }),
+      ),
     );
     return response.data;
   }
@@ -138,19 +131,20 @@ export class AssistantService {
   }: UpdateThreadStateDto) {
     const response = await firstValueFrom(
       this.httpService.post(
-        `${this.baseUrl}/threads/${threadId}/state`,
+        `${this.assistantConfig.baseUrl}/threads/${threadId}/state`,
+        { values, checkpoint_id, as_node },
         {
-          values,
-          checkpoint_id,
-          as_node,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: this.getHeaders(),
         },
       ),
     );
     return response.data;
+  }
+
+  private getHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'x-api-key': this.assistantConfig.apiKey,
+    };
   }
 }

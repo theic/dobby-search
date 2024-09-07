@@ -1,6 +1,7 @@
 import { AssistantService } from '@modules/assistant/assistant.service';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto, UpdateUserDto } from './dto';
+import { UserType } from './enum';
 import { User } from './user.model';
 import { UserRepository } from './user.repository';
 
@@ -12,11 +13,14 @@ export class UserService {
   ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
-    return this.userRepository.create(createUserDto);
+    return this.userRepository.create({
+      ...createUserDto,
+      type: UserType.USER,
+    });
   }
 
-  async getAllUsers(): Promise<User[]> {
-    return this.userRepository.findAll();
+  async getAllUsers(userType?: UserType): Promise<User[]> {
+    return this.userRepository.findAll(userType);
   }
 
   async getUserById(id: string): Promise<User> {

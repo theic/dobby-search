@@ -1,6 +1,9 @@
+import { UserType } from './enum';
+
 export interface User {
   id?: string;
   telegramId: number;
+  type: UserType;
   username?: string;
   firstName?: string;
   lastName?: string;

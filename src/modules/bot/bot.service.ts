@@ -1,12 +1,12 @@
 import { AssistantConfig } from '@config/assistant.config';
 import { FirebaseService } from '@firebase/firebase.service';
 import { AssistantService } from '@modules/assistant/assistant.service';
-import { MessageService } from '@modules/message/message.service';
+import { UserType } from '@modules/user/enum';
 import { UserService } from '@modules/user/user.service';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ConfigType, MessageRole } from '@shared/enum';
-import { Ctx, On, Start, Update } from 'nestjs-telegraf';
+import { ConfigType } from '@shared/enum';
+import { Command, Ctx, On, Start, Update } from 'nestjs-telegraf';
 import { Context } from 'telegraf';
 
 @Injectable()
@@ -19,7 +19,6 @@ export class BotService {
     private readonly firebaseService: FirebaseService,
     private readonly assistantService: AssistantService,
     private readonly configService: ConfigService,
-    private readonly messageService: MessageService,
   ) {
     this.assistantConfig = this.configService.get<AssistantConfig>(
       ConfigType.ASSISTANT,
@@ -36,6 +35,42 @@ export class BotService {
 
     await ctx.reply(
       'Welcome to your Telegram bot! How can I assist you today?',
+    );
+  }
+
+  @Command('bulk')
+  async sendBulkMessage(@Ctx() ctx: Context) {
+    const adminUser = await this.handleUser(ctx);
+    if (adminUser.type !== UserType.ADMIN) {
+      await ctx.reply('Sorry, this command is only available for admins.');
+      return;
+    }
+
+    const message = ctx.message['text'].split('/bulk ')[1];
+    if (!message) {
+      await ctx.reply(
+        'Please provide a message to send. Usage: /bulk Your message here',
+      );
+      return;
+    }
+
+    const users = await this.userService.getAllUsers(UserType.USER);
+    let sentCount = 0;
+
+    for (const user of users) {
+      try {
+        await ctx.telegram.sendMessage(user.telegramId, message);
+        sentCount++;
+      } catch (error) {
+        console.error(
+          `Failed to send message to user ${user.telegramId}:`,
+          error,
+        );
+      }
+    }
+
+    await ctx.reply(
+      `Bulk message sent to ${sentCount} out of ${users.length} users.`,
     );
   }
 
@@ -77,23 +112,6 @@ export class BotService {
             .content
         : 'Sorry, no response from the assistant.';
 
-    // Save user message
-    await this.messageService.createMessage({
-      userId: user.id,
-      content: message,
-      role: MessageRole.HUMAN,
-      threadId,
-    });
-
-    // Save assistant message
-    await this.messageService.createMessage({
-      userId: user.id,
-      content: aiResponse,
-      role: MessageRole.AI,
-      threadId,
-    });
-
-    // Send the reply (this automatically removes the 'typing' status)
     await ctx.reply(aiResponse);
   }
 

@@ -1,6 +1,7 @@
-import { FirebaseService } from 'src/firebase/firebase.service';
-import { User } from './user.model';
 import { Injectable } from '@nestjs/common';
+import { FirebaseService } from 'src/firebase/firebase.service';
+import { UserType } from './enum';
+import { User } from './user.model';
 
 @Injectable()
 export class UserRepository {
@@ -17,8 +18,15 @@ export class UserRepository {
     return { id: docRef.id, ...user };
   }
 
-  async findAll(): Promise<User[]> {
-    const snapshot = await this.usersCollection.get();
+  async findAll(userType?: UserType): Promise<User[]> {
+    let query: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> =
+      this.usersCollection;
+
+    if (userType) {
+      query = query.where('type', '==', userType);
+    }
+
+    const snapshot = await query.get();
     return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as User);
   }
 
