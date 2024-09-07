@@ -1,11 +1,15 @@
+import { AssistantService } from '@modules/assistant/assistant.service';
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { UserRepository } from './user.repository';
-import { User } from './user.model';
 import { CreateUserDto, UpdateUserDto } from './dto';
+import { User } from './user.model';
+import { UserRepository } from './user.repository';
 
 @Injectable()
 export class UserService {
-  constructor(private userRepository: UserRepository) {}
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly assistantService: AssistantService,
+  ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
     return this.userRepository.create(createUserDto);
@@ -57,18 +61,37 @@ export class UserService {
     return user;
   }
 
-  async updateUserAssistantInfo(
+  async addThreadToUser(
     userId: string,
     assistantId: string,
     threadId: string,
-  ): Promise<User> {
-    return this.userRepository.update(userId, { assistantId, threadId });
+  ): Promise<void> {
+    const user = await this.getUserById(userId);
+    if (!user.threads) {
+      user.threads = {};
+    }
+    user.threads[assistantId] = threadId;
+    await this.userRepository.update(userId, user);
   }
 
-  async getUserAssistantInfo(
+  async getOrCreateThread(
     userId: string,
-  ): Promise<{ assistantId: string; threadId: string }> {
+    assistantId: string,
+  ): Promise<string> {
     const user = await this.getUserById(userId);
-    return { assistantId: user.assistantId, threadId: user.threadId };
+    const threadId = user.threads ? user.threads[assistantId] : undefined;
+
+    if (threadId) {
+      return threadId;
+    }
+
+    const newThread = await this.assistantService.createThread({
+      assistantId,
+      metadata: { name: 'New Thread' },
+    });
+
+    await this.addThreadToUser(userId, assistantId, newThread.thread_id);
+
+    return newThread.thread_id;
   }
 }

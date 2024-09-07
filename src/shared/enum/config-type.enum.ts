@@ -1,3 +1,5 @@
 export enum ConfigType {
-  FIRESTORE = 'firestore',
+  FIREBASE = 'firebase',
+  ASSISTANT = 'assistant',
+  BOT = 'bot',
 }

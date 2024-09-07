@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsObject } from 'class-validator';
 
 export class CreateUserDto {
   @IsNotEmpty()
@@ -15,4 +15,8 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   lastName?: string;
+
+  @IsOptional()
+  @IsObject()
+  threads?: Record<string, string>; // Key: assistantId, Value: threadId
 }

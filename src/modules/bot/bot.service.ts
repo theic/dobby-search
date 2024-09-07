@@ -1,143 +1,40 @@
-import { Injectable } from '@nestjs/common';
-import { Ctx, Start, Update, On, Command } from 'nestjs-telegraf';
-import { Context } from 'telegraf';
-import { UserService } from '@modules/user/user.service';
+import { AssistantConfig } from '@config/assistant.config';
 import { FirebaseService } from '@firebase/firebase.service';
 import { AssistantService } from '@modules/assistant/assistant.service';
+import { UserService } from '@modules/user/user.service';
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { ConfigType } from '@shared/enum';
+import { Ctx, On, Start, Update } from 'nestjs-telegraf';
+import { Context } from 'telegraf';
 
 @Injectable()
 @Update()
 export class BotService {
+  private readonly assistantConfig: AssistantConfig;
+
   constructor(
     private readonly userService: UserService,
     private readonly firebaseService: FirebaseService,
     private readonly assistantService: AssistantService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.assistantConfig = this.configService.get<AssistantConfig>(
+      ConfigType.ASSISTANT,
+    );
+  }
 
   @Start()
   async start(@Ctx() ctx: Context) {
-    const startPayload = (ctx.message as any).text.split(' ')[1];
     const user = await this.handleUser(ctx);
-
-    if (startPayload) {
-      // Deep link with assistant ID
-      await this.handleDeepLink(ctx, user, startPayload);
-    } else {
-      // Regular start command
-      await this.handleRegularStart(ctx, user);
-    }
-  }
-
-  private async handleDeepLink(ctx: Context, user: any, assistantId: string) {
-    try {
-      const assistant = await this.assistantService.getAssistant(assistantId);
-      const thread = await this.assistantService.createThread({
-        assistantId: assistant.assistant_id,
-        metadata: { name: 'Telegram Thread' },
-      });
-      await this.userService.updateUserAssistantInfo(
-        user.id,
-        assistant.assistant_id,
-        thread.thread_id,
-      );
-      await ctx.reply(
-        `Welcome! You've been connected to the "${assistant.graph_id}" assistant. How can I help you?`,
-      );
-    } catch (error) {
-      console.error('Error handling deep link:', error);
-      await ctx.reply(
-        'Sorry, there was an error connecting to the specified assistant. Please try again later.',
-      );
-    }
-  }
-
-  private async handleRegularStart(ctx: Context, user: any) {
-    const assistant = await this.assistantService.createAssistant({
-      graph_id: 'simple_agent',
-      config: {
-        tags: ['telegram', 'bot'],
-        recursion_limit: 5,
-        configurable: {
-          type: 'chatbot',
-          'type==agent/agent_type': 'GPT 4o',
-          'type==agent/interrupt_before_action': false,
-          'type==agent/retrieval_description':
-            'Can be used to look up information that was uploaded to this assistant.\nIf the user is referencing particular files, that is often a good hint that information may be here.\nIf the user asks a vague question, they are likely meaning to look up info from this retriever, and you should call it!',
-          'type==agent/system_message': 'You are a helpful assistant.',
-          'type==agent/tools': [],
-          'type==chat_retrieval/llm_type': 'GPT 4o',
-          'type==chat_retrieval/system_message': 'You are a helpful assistant.',
-          'type==chatbot/llm_type': 'GPT 4o',
-          'type==chatbot/system_message': 'You are a helpful assistant.',
-        },
-      },
-      metadata: { createdBy: user.id },
-    });
-    const thread = await this.assistantService.createThread({
-      assistantId: assistant.assistant_id,
-      metadata: { name: 'Telegram Thread' },
-    });
-    await this.userService.updateUserAssistantInfo(
+    await this.userService.getOrCreateThread(
       user.id,
-      assistant.assistant_id,
-      thread.thread_id,
+      this.assistantConfig.assistantId,
     );
+
     await ctx.reply(
       'Welcome to your Telegram bot! How can I assist you today?',
     );
-  }
-
-  @Command('update')
-  async updateInstructions(@Ctx() ctx: Context) {
-    const user = await this.handleUser(ctx);
-    const { assistantId } = await this.userService.getUserAssistantInfo(
-      user.id,
-    );
-
-    const message = ctx.message['text'];
-    const newInstructions = message.split('/update')[1].trim();
-
-    if (!newInstructions) {
-      await ctx.reply(
-        'Please provide new instructions after the command. For example: /update_instructions Be more concise in your responses.',
-      );
-      return;
-    }
-
-    console.debug('newInstructions', newInstructions);
-
-    try {
-      await this.assistantService.updateAssistant({
-        assistantId,
-        graph_id: 'simple_agent',
-        config: {
-          tags: ['telegram', 'bot'],
-          recursion_limit: 5,
-          configurable: {
-            type: 'chatbot',
-            'type==agent/agent_type': 'Claude 2',
-            'type==agent/interrupt_before_action': false,
-            'type==agent/retrieval_description':
-              'Can be used to look up information that was uploaded to this assistant.\nIf the user is referencing particular files, that is often a good hint that information may be here.\nIf the user asks a vague question, they are likely meaning to look up info from this retriever, and you should call it!',
-            'type==agent/system_message': 'You are a helpful assistant.',
-            'type==agent/tools': [],
-            'type==chat_retrieval/llm_type': 'GPT 3.5 Turbo',
-            'type==chat_retrieval/system_message':
-              'You are a helpful assistant.',
-            'type==chatbot/llm_type': 'Claude 2',
-            'type==chatbot/system_message': newInstructions,
-          },
-        },
-        metadata: { updatedBy: user.id },
-      });
-
-      await ctx.reply('Assistant instructions updated successfully!');
-    } catch (error) {
-      console.error('Error updating assistant instructions:', error);
-      await ctx.reply(
-        'An error occurred while updating the assistant instructions. Please try again later.',
-      );
-    }
   }
 
   @On('message')
@@ -145,12 +42,14 @@ export class BotService {
     const user = await this.handleUser(ctx);
     const message = ctx.message['text'];
 
-    const { threadId, assistantId } =
-      await this.userService.getUserAssistantInfo(user.id);
+    const threadId = await this.userService.getOrCreateThread(
+      user.id,
+      this.assistantConfig.assistantId,
+    );
 
     const runResult = await this.assistantService.runAssistant({
       threadId,
-      assistantId,
+      assistantId: this.assistantConfig.assistantId,
       input: {
         messages: {
           role: 'user',
@@ -161,14 +60,11 @@ export class BotService {
       config: {},
     });
 
-    console.log('runResult', runResult);
+    console.debug('runResult', runResult);
 
     const threadState = await this.assistantService.getThreadState({
       threadId,
     });
-
-    console.log('threadState', threadState);
-    console.log('threadState/messages', threadState.values.messages);
 
     const aiResponse =
       threadState.values.messages.length > 0
