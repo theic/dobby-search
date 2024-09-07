@@ -1,18 +1,29 @@
-import BotConfig from '@config/bot.config';
 import { FirebaseModule } from '@firebase/firebase.module';
 import { AssistantModule } from '@modules/assistant/assistant.module';
 import { MessageModule } from '@modules/message/message.module';
 import { UserModule } from '@modules/user/user.module';
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { ConfigType } from '@shared/enum';
 import { TelegrafModule } from 'nestjs-telegraf';
 import { BotService } from './bot.service';
 
 @Module({
   imports: [
     TelegrafModule.forRootAsync({
-      useFactory: () => ({
-        token: BotConfig().token,
-      }),
+      useFactory: (configService: ConfigService) => {
+        const botConfig = configService.get(ConfigType.BOT);
+        return {
+          token: botConfig.token,
+          launchOptions: {
+            webhook: {
+              domain: botConfig.webhookDomain,
+              hookPath: botConfig.webhookPath,
+            },
+          },
+        };
+      },
+      inject: [ConfigService],
     }),
     UserModule,
     FirebaseModule,
