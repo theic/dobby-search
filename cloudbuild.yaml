@@ -1,13 +1,13 @@
 steps:
 # Build the container image
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'gcr.io/dobby-search/dobby-search', '.']
+  args: ['build', '-t', 'gcr.io/bot-builder-80a4b/dobby-search', '.']
 # Push the container image to Container Registry
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'gcr.io/dobby-search/dobby-search']
+  args: ['push', 'gcr.io/bot-builder-80a4b/dobby-search']
 # Deploy container image to Cloud Run
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   entrypoint: gcloud
-  args: ['run', 'deploy', 'dobby-search', '--image', 'gcr.io/dobby-search/dobby-search', '--region', 'europe-west1']
+  args: ['run', 'deploy', 'dobby-search', '--image', 'gcr.io/bot-builder-80a4b/dobby-search', '--region', 'europe-west1']
 images:
-- gcr.io/dobby-search/dobby-search
+- gcr.io/bot-builder-80a4b/dobby-search
