@@ -1,4 +1,5 @@
 import { AssistantConfig } from '@config/assistant.config';
+import { BotConfig } from '@config/bot.config';
 import { FirebaseService } from '@firebase/firebase.service';
 import { AssistantService } from '@modules/assistant/assistant.service';
 import { LocalizationService } from '@modules/localization/localization.service';
@@ -17,6 +18,7 @@ import { InlineQuery } from 'telegraf/typings/core/types/typegram';
 @Update()
 export class BotService {
   private readonly assistantConfig: AssistantConfig;
+  private readonly botConfig: BotConfig;
 
   constructor(
     private readonly userService: UserService,
@@ -28,6 +30,7 @@ export class BotService {
     this.assistantConfig = this.configService.get<AssistantConfig>(
       ConfigType.ASSISTANT,
     );
+    this.botConfig = this.configService.get<BotConfig>(ConfigType.BOT);
   }
 
   @Start()
@@ -121,6 +124,71 @@ export class BotService {
     }
 
     await ctx.reply(message);
+  }
+
+  @Command('buy_tokens')
+  async buyTokens(@Ctx() ctx: Context) {
+    const user = await this.handleUser(ctx);
+    const args = ctx.message['text'].split(' ');
+
+    if (args.length !== 2 || isNaN(Number(args[1]))) {
+      const usageMessage = this.localizationService.translate(
+        'buyTokensUsage',
+        user.languageCode,
+      );
+      await ctx.reply(usageMessage);
+      return;
+    }
+
+    const amount = parseInt(args[1]);
+    const pricePerToken = this.botConfig.pricePerToken;
+    const totalPrice = amount * pricePerToken;
+
+    const invoice = {
+      title: this.localizationService.translate(
+        'buyTokensTitle',
+        user.languageCode,
+      ),
+      description: this.localizationService.translate(
+        'buyTokensDescription',
+        user.languageCode,
+        { amount },
+      ),
+      payload: `buy_tokens_${user.id}_${amount}`,
+      provider_token: '',
+      currency: 'XTR',
+      prices: [{ label: `${amount} tokens`, amount: totalPrice }], // Amount in cents
+    };
+
+    await ctx.replyWithInvoice(invoice);
+  }
+
+  @On('pre_checkout_query')
+  async onPreCheckoutQuery(@Ctx() ctx: Context) {
+    // You can perform any pre-checkout validation here
+    await ctx.answerPreCheckoutQuery(true);
+  }
+
+  @On('successful_payment')
+  async onSuccessfulPayment(@Ctx() ctx: Context) {
+    const user = await this.handleUser(ctx);
+    const payment = ctx.message['successful_payment'];
+    const [, , userId, amount] = payment.invoice_payload.split('_');
+
+    if (userId === user.id) {
+      await this.userService.addTokens(
+        user.id,
+        parseInt(amount),
+        'Token purchase',
+      );
+
+      const successMessage = this.localizationService.translate(
+        'buyTokensSuccess',
+        user.languageCode,
+        { amount },
+      );
+      await ctx.reply(successMessage);
+    }
   }
 
   @On('message')

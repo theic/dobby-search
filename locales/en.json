@@ -6,5 +6,9 @@
   "noAssistantResponse": "Sorry, no response from the assistant.",
   "insufficientTokens": "Sorry, you don't have enough tokens for this request. Please add more tokens to continue.",
   "currentBalance": "Your current token balance is: {balance}",
-  "recentTransactions": "Recent transactions:"
+  "recentTransactions": "Recent transactions:",
+  "buyTokensUsage": "Usage: /buy_tokens <amount>",
+  "buyTokensTitle": "Buy Tokens",
+  "buyTokensDescription": "Purchase {amount} tokens for your account",
+  "buyTokensSuccess": "Successfully purchased {amount} tokens!"
 }
