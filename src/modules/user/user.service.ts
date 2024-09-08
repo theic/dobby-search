@@ -15,6 +15,7 @@ export class UserService {
   async createUser(createUserDto: CreateUserDto): Promise<User> {
     return this.userRepository.create({
       ...createUserDto,
+      tokenBalance: 0,
       type: UserType.USER,
     });
   }

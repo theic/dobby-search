@@ -22,6 +22,8 @@ async function bootstrap() {
   const serverConfig = configService.get<ServerConfig>(ConfigType.SERVER);
   app.useLogger(serverConfig.logLevels);
 
+  Logger.overrideLogger(serverConfig.logLevels);
+
   await app.listen(serverConfig.port);
   Logger.log(
     `Application is running on port:${serverConfig.port}`,

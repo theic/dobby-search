@@ -1,6 +1,7 @@
 import { AssistantConfig } from '@config/assistant.config';
 import { FirebaseService } from '@firebase/firebase.service';
 import { AssistantService } from '@modules/assistant/assistant.service';
+import { LocalizationService } from '@modules/localization/localization.service';
 import { UserType } from '@modules/user/enum';
 import { UserService } from '@modules/user/user.service';
 import { Injectable } from '@nestjs/common';
@@ -8,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { ConfigType } from '@shared/enum';
 import { Command, Ctx, On, Start, Update } from 'nestjs-telegraf';
 import { Context } from 'telegraf';
+import { InlineQuery } from 'telegraf/typings/core/types/typegram';
 
 @Injectable()
 @Update()
@@ -19,6 +21,7 @@ export class BotService {
     private readonly firebaseService: FirebaseService,
     private readonly assistantService: AssistantService,
     private readonly configService: ConfigService,
+    private readonly localizationService: LocalizationService,
   ) {
     this.assistantConfig = this.configService.get<AssistantConfig>(
       ConfigType.ASSISTANT,
@@ -33,24 +36,32 @@ export class BotService {
       this.assistantConfig.assistantId,
     );
 
-    await ctx.reply(
-      'Welcome to your Telegram bot! How can I assist you today?',
+    const welcomeMessage = this.localizationService.translate(
+      'welcome',
+      user.languageCode,
     );
+    await ctx.reply(welcomeMessage);
   }
 
   @Command('bulk')
   async sendBulkMessage(@Ctx() ctx: Context) {
     const adminUser = await this.handleUser(ctx);
     if (adminUser.type !== UserType.ADMIN) {
-      await ctx.reply('Sorry, this command is only available for admins.');
+      const adminOnlyMessage = this.localizationService.translate(
+        'adminOnly',
+        adminUser.languageCode,
+      );
+      await ctx.reply(adminOnlyMessage);
       return;
     }
 
     const message = ctx.message['text'].split('/bulk ')[1];
     if (!message) {
-      await ctx.reply(
-        'Please provide a message to send. Usage: /bulk Your message here',
+      const usageMessage = this.localizationService.translate(
+        'bulkMessageUsage',
+        adminUser.languageCode,
       );
+      await ctx.reply(usageMessage);
       return;
     }
 
@@ -69,19 +80,64 @@ export class BotService {
       }
     }
 
-    await ctx.reply(
-      `Bulk message sent to ${sentCount} out of ${users.length} users.`,
+    const sentMessage = this.localizationService.translate(
+      'bulkMessageSent',
+      adminUser.languageCode,
+      {
+        sentCount,
+        totalCount: users.length,
+      },
     );
+    await ctx.reply(sentMessage);
   }
 
   @On('message')
   async onMessage(@Ctx() ctx: Context) {
-    // Set bot to 'typing' status
     await ctx.sendChatAction('typing');
-
     const user = await this.handleUser(ctx);
     const message = ctx.message['text'];
+    const response = await this.processMessage(user, message);
+    await ctx.reply(response);
+  }
 
+  @On('inline_query')
+  async onInlineQuery(@Ctx() ctx: Context) {
+    const inlineQuery = ctx.inlineQuery as InlineQuery;
+    const query = inlineQuery.query;
+
+    if (!query) {
+      await ctx.answerInlineQuery([
+        {
+          type: 'article',
+          id: '1',
+          title: 'Type in search your request',
+          input_message_content: {
+            message_text: 'Type in search your request',
+          },
+        },
+      ]);
+      return;
+    }
+
+    const user = await this.handleUser(ctx);
+    const response = await this.processMessage(user, query);
+
+    const result = [
+      {
+        type: 'article',
+        id: '1',
+        title: 'AI Response',
+        description: response.substring(0, 100) + '...',
+        input_message_content: {
+          message_text: response,
+        },
+      },
+    ] as const;
+
+    await ctx.answerInlineQuery(result);
+  }
+
+  private async processMessage(user: any, message: string): Promise<string> {
     const threadId = await this.userService.getOrCreateThread(
       user.id,
       this.assistantConfig.assistantId,
@@ -106,13 +162,10 @@ export class BotService {
       threadId,
     });
 
-    const aiResponse =
-      threadState.values.messages.length > 0
-        ? threadState.values.messages[threadState.values.messages.length - 1]
-            .content
-        : 'Sorry, no response from the assistant.';
-
-    await ctx.reply(aiResponse);
+    return threadState.values.messages.length > 0
+      ? threadState.values.messages[threadState.values.messages.length - 1]
+          .content
+      : 'Sorry, no response from the assistant.';
   }
 
   private async handleUser(ctx: Context) {

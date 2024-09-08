@@ -1,5 +1,6 @@
 import { FirebaseModule } from '@firebase/firebase.module';
 import { AssistantModule } from '@modules/assistant/assistant.module';
+import { LocalizationModule } from '@modules/localization/localization.module';
 import { MessageModule } from '@modules/message/message.module';
 import { UserModule } from '@modules/user/user.module';
 import { Module } from '@nestjs/common';
@@ -29,6 +30,7 @@ import { BotService } from './bot.service';
     FirebaseModule,
     AssistantModule,
     MessageModule,
+    LocalizationModule,
   ],
   providers: [BotService],
 })

@@ -1,0 +1,7 @@
+{
+  "welcome": "Welcome to your Telegram bot! How can I assist you today?",
+  "adminOnly": "Sorry, this command is only available for admins.",
+  "bulkMessageUsage": "Please provide a message to send. Usage: /bulk Your message here",
+  "bulkMessageSent": "Bulk message sent to {sentCount} out of {totalCount} users.",
+  "noAssistantResponse": "Sorry, no response from the assistant."
+}
