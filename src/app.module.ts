@@ -6,6 +6,7 @@ import { AssistantModule } from '@modules/assistant/assistant.module';
 import { BotModule } from '@modules/bot';
 import { LocalizationModule } from '@modules/localization/localization.module';
 import { MessageModule } from '@modules/message/message.module';
+import { TokenTransactionModule } from '@modules/token-transaction/token-transaction.module';
 import { UserModule } from '@modules/user/user.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
@@ -23,6 +24,7 @@ import { FirebaseModule } from './firebase/firebase.module';
     MessageModule,
     AssistantModule,
     LocalizationModule,
+    TokenTransactionModule,
   ],
 })
 export class AppModule {}

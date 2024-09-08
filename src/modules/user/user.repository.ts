@@ -35,9 +35,11 @@ export class UserRepository {
     return doc.exists ? ({ id: doc.id, ...doc.data() } as User) : null;
   }
 
-  async update(id: string, user: Partial<User>): Promise<User | null> {
-    await this.usersCollection.doc(id).update(user);
-    return this.findById(id);
+  async update(id: string, updateUserDto: Partial<User>): Promise<User> {
+    const userRef = this.usersCollection.doc(id);
+    await userRef.update(updateUserDto);
+    const updatedUser = await userRef.get();
+    return { id: updatedUser.id, ...updatedUser.data() } as User;
   }
 
   async delete(id: string): Promise<void> {

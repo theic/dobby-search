@@ -17,7 +17,7 @@ export class LocalizationService {
   }
 
   private loadTranslations() {
-    const localesPath = path.join(__dirname, '..', '..', 'locales');
+    const localesPath = path.join(__dirname, '..', '..', '..', 'locales');
     fs.readdirSync(localesPath).forEach((file) => {
       if (file.endsWith('.json')) {
         const language = file.split('.')[0];

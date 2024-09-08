@@ -1,4 +1,6 @@
 import { AssistantService } from '@modules/assistant/assistant.service';
+import { TokenTransactionType } from '@modules/token-transaction/token-transaction.model';
+import { TokenTransactionService } from '@modules/token-transaction/token-transaction.service';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto, UpdateUserDto } from './dto';
 import { UserType } from './enum';
@@ -10,6 +12,7 @@ export class UserService {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly assistantService: AssistantService,
+    private readonly tokenTransactionService: TokenTransactionService,
   ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
@@ -89,5 +92,55 @@ export class UserService {
     await this.addThreadToUser(userId, assistantId, newThread.thread_id);
 
     return newThread.thread_id;
+  }
+
+  async addTokens(
+    userId: string,
+    amount: number,
+    description: string,
+  ): Promise<User> {
+    const user = await this.getUserById(userId);
+    user.tokenBalance += amount;
+    const updatedUser = await this.userRepository.update(userId, user);
+
+    await this.tokenTransactionService.createTransaction(
+      userId,
+      amount,
+      TokenTransactionType.ADD,
+      description,
+    );
+
+    return updatedUser;
+  }
+
+  async spendTokens(
+    userId: string,
+    amount: number,
+    description: string,
+  ): Promise<User> {
+    const user = await this.getUserById(userId);
+    if (user.tokenBalance < amount) {
+      throw new Error('Insufficient token balance');
+    }
+    user.tokenBalance -= amount;
+    const updatedUser = await this.userRepository.update(userId, user);
+
+    await this.tokenTransactionService.createTransaction(
+      userId,
+      amount,
+      TokenTransactionType.SPEND,
+      description,
+    );
+
+    return updatedUser;
+  }
+
+  async getTokenBalance(userId: string): Promise<number> {
+    const user = await this.getUserById(userId);
+    return user.tokenBalance;
+  }
+
+  async getTokenTransactionHistory(userId: string) {
+    return this.tokenTransactionService.getTransactionHistory(userId);
   }
 }

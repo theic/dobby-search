@@ -3,5 +3,8 @@
   "adminOnly": "Sorry, this command is only available for admins.",
   "bulkMessageUsage": "Please provide a message to send. Usage: /bulk Your message here",
   "bulkMessageSent": "Bulk message sent to {sentCount} out of {totalCount} users.",
-  "noAssistantResponse": "Sorry, no response from the assistant."
+  "noAssistantResponse": "Sorry, no response from the assistant.",
+  "insufficientTokens": "Sorry, you don't have enough tokens for this request. Please add more tokens to continue.",
+  "currentBalance": "Your current token balance is: {balance}",
+  "recentTransactions": "Recent transactions:"
 }

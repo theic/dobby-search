@@ -2,7 +2,9 @@ import { AssistantConfig } from '@config/assistant.config';
 import { FirebaseService } from '@firebase/firebase.service';
 import { AssistantService } from '@modules/assistant/assistant.service';
 import { LocalizationService } from '@modules/localization/localization.service';
+import { TokenTransactionType } from '@modules/token-transaction/token-transaction.model';
 import { UserType } from '@modules/user/enum';
+import { User } from '@modules/user/user.model';
 import { UserService } from '@modules/user/user.service';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -91,6 +93,36 @@ export class BotService {
     await ctx.reply(sentMessage);
   }
 
+  @Command('balance')
+  async checkBalance(@Ctx() ctx: Context) {
+    const user = await this.handleUser(ctx);
+    const balance = await this.userService.getTokenBalance(user.id);
+    const transactions = await this.userService.getTokenTransactionHistory(
+      user.id,
+    );
+
+    let message = this.localizationService.translate(
+      'currentBalance',
+      user.languageCode,
+      { balance },
+    );
+    message +=
+      '\n\n' +
+      this.localizationService.translate(
+        'recentTransactions',
+        user.languageCode,
+      );
+
+    for (const transaction of transactions.slice(0, 5)) {
+      // Show last 5 transactions
+      const transactionType =
+        transaction.type === TokenTransactionType.ADD ? '+' : '-';
+      message += `\n${transactionType}${transaction.amount} - ${transaction.description}`;
+    }
+
+    await ctx.reply(message);
+  }
+
   @On('message')
   async onMessage(@Ctx() ctx: Context) {
     await ctx.sendChatAction('typing');
@@ -137,11 +169,23 @@ export class BotService {
     await ctx.answerInlineQuery(result);
   }
 
-  private async processMessage(user: any, message: string): Promise<string> {
+  private async processMessage(user: User, message: string): Promise<string> {
     const threadId = await this.userService.getOrCreateThread(
       user.id,
       this.assistantConfig.assistantId,
     );
+
+    // Estimate token usage (you'll need to implement this based on your needs)
+    const estimatedTokens = this.estimateTokenUsage(message);
+
+    // Check if user has enough tokens
+    const userTokens = await this.userService.getTokenBalance(user.id);
+    if (userTokens < estimatedTokens) {
+      return this.localizationService.translate(
+        'insufficientTokens',
+        user.languageCode,
+      );
+    }
 
     const runResult = await this.assistantService.runAssistant({
       threadId,
@@ -156,7 +200,15 @@ export class BotService {
       config: {},
     });
 
-    console.debug('runResult', runResult);
+    // Calculate actual token usage (you'll need to implement this based on the response)
+    const actualTokens = this.calculateActualTokenUsage(runResult);
+
+    // Deduct tokens from user's balance
+    await this.userService.spendTokens(
+      user.id,
+      actualTokens,
+      `Message processing: ${message.substring(0, 50)}...`,
+    );
 
     const threadState = await this.assistantService.getThreadState({
       threadId,
@@ -166,6 +218,17 @@ export class BotService {
       ? threadState.values.messages[threadState.values.messages.length - 1]
           .content
       : 'Sorry, no response from the assistant.';
+  }
+
+  private estimateTokenUsage(message: string): number {
+    // TODO: Implement a more sophisticated token estimation method
+    return Math.ceil(message.length / 4);
+  }
+
+  private calculateActualTokenUsage(runResult: any): number {
+    const messages = runResult.messages || [];
+    const lastMessage = messages[messages.length - 1];
+    return lastMessage?.usage_metadata?.total_tokens ?? 0;
   }
 
   private async handleUser(ctx: Context) {
