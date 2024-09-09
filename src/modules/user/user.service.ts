@@ -4,6 +4,7 @@ import { TokenTransactionService } from '@modules/token-transaction/token-transa
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto, UpdateUserDto } from './dto';
 import { UserType } from './enum';
+import { DEFAULT_TOKEN_BALANCE } from './user.constants';
 import { User } from './user.model';
 import { UserRepository } from './user.repository';
 
@@ -18,7 +19,7 @@ export class UserService {
   async createUser(createUserDto: CreateUserDto): Promise<User> {
     return this.userRepository.create({
       ...createUserDto,
-      tokenBalance: 0,
+      tokenBalance: DEFAULT_TOKEN_BALANCE,
       type: UserType.USER,
     });
   }

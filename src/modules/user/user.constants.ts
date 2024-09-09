@@ -1,0 +1,1 @@
+export const DEFAULT_TOKEN_BALANCE = 100000;

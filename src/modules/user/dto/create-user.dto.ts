@@ -23,4 +23,7 @@ export class CreateUserDto {
   @IsOptional()
   @IsObject()
   threads?: Record<string, string>; // Key: assistantId, Value: threadId
+
+  @IsOptional()
+  tokenBalance?: number;
 }
