@@ -1,0 +1,14 @@
+{
+  "welcome": "Benvenuto nel tuo bot Telegram! Come posso aiutarti oggi?",
+  "adminOnly": "Spiacente, questo comando è disponibile solo per gli amministratori.",
+  "bulkMessageUsage": "Per favore, fornisci un messaggio da inviare. Utilizzo: /bulk Il tuo messaggio qui",
+  "bulkMessageSent": "Messaggio di massa inviato a {sentCount} utenti su {totalCount}.",
+  "noAssistantResponse": "Spiacente, nessuna risposta dall'assistente.",
+  "insufficientTokens": "Spiacente, non hai abbastanza token per questa richiesta. Aggiungi altri token per continuare.",
+  "currentBalance": "Il tuo saldo attuale di token è: {balance}",
+  "recentTransactions": "Transazioni recenti:",
+  "buyTokensUsage": "Utilizzo: /buy_tokens <quantità>",
+  "buyTokensTitle": "Acquista Token",
+  "buyTokensDescription": "Acquista {amount} token per il tuo account",
+  "buyTokensSuccess": "Acquistati con successo {amount} token!"
+}

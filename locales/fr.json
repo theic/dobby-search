@@ -1,0 +1,14 @@
+{
+  "welcome": "Bienvenue sur votre bot Telegram ! Comment puis-je vous aider aujourd'hui ?",
+  "adminOnly": "Désolé, cette commande n'est disponible que pour les administrateurs.",
+  "bulkMessageUsage": "Veuillez fournir un message à envoyer. Utilisation : /bulk Votre message ici",
+  "bulkMessageSent": "Message en masse envoyé à {sentCount} utilisateurs sur {totalCount}.",
+  "noAssistantResponse": "Désolé, pas de réponse de l'assistant.",
+  "insufficientTokens": "Désolé, vous n'avez pas assez de jetons pour cette demande. Veuillez ajouter plus de jetons pour continuer.",
+  "currentBalance": "Votre solde actuel de jetons est : {balance}",
+  "recentTransactions": "Transactions récentes :",
+  "buyTokensUsage": "Utilisation : /buy_tokens <montant>",
+  "buyTokensTitle": "Acheter des Jetons",
+  "buyTokensDescription": "Acheter {amount} jetons pour votre compte",
+  "buyTokensSuccess": "{amount} jetons achetés avec succès !"
+}

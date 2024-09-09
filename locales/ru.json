@@ -3,5 +3,12 @@
   "adminOnly": "Извините, эта команда доступна только для администраторов.",
   "bulkMessageUsage": "Пожалуйста, укажите сообщение для отправки. Использование: /bulk Ваше сообщение здесь",
   "bulkMessageSent": "Массовое сообщение отправлено {sentCount} из {totalCount} пользователей.",
-  "noAssistantResponse": "Извините, нет ответа от ассистента."
+  "noAssistantResponse": "Извините, нет ответа от ассистента.",
+  "insufficientTokens": "Извините, у вас недостаточно токенов для этого запроса. Пожалуйста, добавьте больше токенов, чтобы продолжить.",
+  "currentBalance": "Ваш текущий баланс токенов: {balance}",
+  "recentTransactions": "Недавние транзакции:",
+  "buyTokensUsage": "Использование: /buy_tokens <количество>",
+  "buyTokensTitle": "Купить токены",
+  "buyTokensDescription": "Купить {amount} токенов для вашего аккаунта",
+  "buyTokensSuccess": "Успешно куплено {amount} токенов!"
 }
