@@ -10,5 +10,8 @@
   "buyTokensUsage": "Utilisation : /buy_tokens <montant>",
   "buyTokensTitle": "Acheter des Jetons",
   "buyTokensDescription": "Acheter {amount} jetons pour votre compte",
-  "buyTokensSuccess": "{amount} jetons achetés avec succès !"
+  "buyTokensSuccess": "{amount} jetons achetés avec succès !",
+  "rateLimitExceeded": "Désolé, vous avez dépassé la limite de requêtes. Veuillez réessayer plus tard.",
+  "noResponse": "Désolé, aucune réponse reçue.",
+  "errorProcessingMessage": "Une erreur s'est produite lors du traitement de votre message. Veuillez réessayer."
 }

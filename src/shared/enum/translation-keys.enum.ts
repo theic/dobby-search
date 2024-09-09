@@ -1,0 +1,16 @@
+export enum TranslationKey {
+  WELCOME = 'welcome',
+  ADMIN_ONLY = 'adminOnly',
+  BULK_MESSAGE_USAGE = 'bulkMessageUsage',
+  BULK_MESSAGE_SENT = 'bulkMessageSent',
+  CURRENT_BALANCE = 'currentBalance',
+  RECENT_TRANSACTIONS = 'recentTransactions',
+  BUY_TOKENS_USAGE = 'buyTokensUsage',
+  BUY_TOKENS_TITLE = 'buyTokensTitle',
+  BUY_TOKENS_DESCRIPTION = 'buyTokensDescription',
+  BUY_TOKENS_SUCCESS = 'buyTokensSuccess',
+  RATE_LIMIT_EXCEEDED = 'rateLimitExceeded',
+  INSUFFICIENT_TOKENS = 'insufficientTokens',
+  NO_RESPONSE = 'noResponse',
+  ERROR_PROCESSING_MESSAGE = 'errorProcessingMessage',
+}

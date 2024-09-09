@@ -10,5 +10,8 @@
   "buyTokensUsage": "Использование: /buy_tokens <количество>",
   "buyTokensTitle": "Купить токены",
   "buyTokensDescription": "Купить {amount} токенов для вашего аккаунта",
-  "buyTokensSuccess": "Успешно куплено {amount} токенов!"
+  "buyTokensSuccess": "Успешно куплено {amount} токенов!",
+  "rateLimitExceeded": "Извините, вы превысили лимит запросов. Пожалуйста, повторите попытку позже.",
+  "noResponse": "Извините, ответ не получен.",
+  "errorProcessingMessage": "Произошла ошибка при обработке вашего сообщения. Пожалуйста, попробуйте еще раз."
 }

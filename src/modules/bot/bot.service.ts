@@ -12,6 +12,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ConfigType } from '@shared/enum';
+import { TranslationKey } from '@shared/enum/translation-keys.enum';
 import { Cache } from 'cache-manager';
 import { Command, Ctx, On, Start, Update } from 'nestjs-telegraf';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
@@ -50,7 +51,7 @@ export class BotService {
     this.serverConfig = this.configService.get<ServerConfig>(ConfigType.SERVER);
     this.rateLimiter = new RateLimiterMemory({
       points: 5, // Number of points
-      duration: 60, // Per 60 seconds
+      duration: 30, // Per 30 seconds
     });
   }
 
@@ -63,7 +64,7 @@ export class BotService {
     );
 
     const welcomeMessage = this.localizationService.translate(
-      'welcome',
+      TranslationKey.WELCOME,
       user.languageCode,
     );
     await ctx.reply(welcomeMessage);
@@ -74,7 +75,7 @@ export class BotService {
     const adminUser = await this.handleUser(ctx);
     if (adminUser.type !== UserType.ADMIN) {
       const adminOnlyMessage = this.localizationService.translate(
-        'adminOnly',
+        TranslationKey.ADMIN_ONLY,
         adminUser.languageCode,
       );
       await ctx.reply(adminOnlyMessage);
@@ -84,7 +85,7 @@ export class BotService {
     const message = ctx.message['text'].split('/bulk ')[1];
     if (!message) {
       const usageMessage = this.localizationService.translate(
-        'bulkMessageUsage',
+        TranslationKey.BULK_MESSAGE_USAGE,
         adminUser.languageCode,
       );
       await ctx.reply(usageMessage);
@@ -107,7 +108,7 @@ export class BotService {
     }
 
     const sentMessage = this.localizationService.translate(
-      'bulkMessageSent',
+      TranslationKey.BULK_MESSAGE_SENT,
       adminUser.languageCode,
       {
         sentCount,
@@ -126,14 +127,14 @@ export class BotService {
     );
 
     let message = this.localizationService.translate(
-      'currentBalance',
+      TranslationKey.CURRENT_BALANCE,
       user.languageCode,
       { balance },
     );
     message +=
       '\n\n' +
       this.localizationService.translate(
-        'recentTransactions',
+        TranslationKey.RECENT_TRANSACTIONS,
         user.languageCode,
       );
 
@@ -154,7 +155,7 @@ export class BotService {
 
     if (args.length !== 2 || isNaN(Number(args[1]))) {
       const usageMessage = this.localizationService.translate(
-        'buyTokensUsage',
+        TranslationKey.BUY_TOKENS_USAGE,
         user.languageCode,
       );
       await ctx.reply(usageMessage);
@@ -167,11 +168,11 @@ export class BotService {
 
     const invoice = {
       title: this.localizationService.translate(
-        'buyTokensTitle',
+        TranslationKey.BUY_TOKENS_TITLE,
         user.languageCode,
       ),
       description: this.localizationService.translate(
-        'buyTokensDescription',
+        TranslationKey.BUY_TOKENS_DESCRIPTION,
         user.languageCode,
         { amount },
       ),
@@ -204,7 +205,7 @@ export class BotService {
       );
 
       const successMessage = this.localizationService.translate(
-        'buyTokensSuccess',
+        TranslationKey.BUY_TOKENS_SUCCESS,
         user.languageCode,
         { amount },
       );
@@ -214,11 +215,15 @@ export class BotService {
 
   @On('message')
   async onMessage(@Ctx() ctx: BotContext) {
+    console.debug('onMessage', ctx.message['text']);
     try {
       await this.rateLimiter.consume(ctx.from.id);
     } catch (error) {
       await ctx.reply(
-        'You are sending messages too quickly. Please wait a moment and try again.',
+        this.localizationService.translate(
+          TranslationKey.RATE_LIMIT_EXCEEDED,
+          ctx.from.language_code,
+        ),
       );
       return;
     }
@@ -229,24 +234,26 @@ export class BotService {
     const loadingEmoji = '⏳';
     const placeholderMessage = await ctx.reply(loadingEmoji);
 
-    const startTime = Date.now();
-    const response = await this.processMessage(user, message);
-    const endTime = Date.now();
+    setTimeout(async () => {
+      const startTime = Date.now();
+      const response = await this.processMessage(user, message);
+      const endTime = Date.now();
 
-    const processingTime = endTime - startTime;
-    this.logger.debug(`Response time: ${processingTime}ms`);
+      const processingTime = endTime - startTime;
+      this.logger.debug(`Response time: ${processingTime}ms`);
 
-    let responseText = response;
-    if (this.serverConfig.nodeEnv === 'development') {
-      responseText += `\n\nResponse time: ${processingTime}ms`;
-    }
+      let responseText = response;
+      if (this.serverConfig.nodeEnv === 'development') {
+        responseText += `\n\nResponse time: ${processingTime}ms`;
+      }
 
-    await ctx.telegram.editMessageText(
-      ctx.chat.id,
-      placeholderMessage.message_id,
-      null,
-      responseText,
-    );
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        placeholderMessage.message_id,
+        null,
+        responseText,
+      );
+    }, 0);
   }
 
   private async getOrCreateUserFromSession(ctx: BotContext): Promise<User> {
@@ -300,56 +307,72 @@ export class BotService {
   }
 
   private async processMessage(user: User, message: string): Promise<string> {
-    const estimatedTokens = this.estimateTokenUsage(message);
+    try {
+      const estimatedTokens = this.estimateTokenUsage(message);
 
-    const [threadId, userTokens] = await Promise.all([
-      this.userService.getOrCreateThread(
-        user.id,
-        this.assistantConfig.assistantId,
-      ),
-      this.userService.getTokenBalance(user.id),
-    ]);
+      const [threadId, userTokens] = await Promise.all([
+        this.userService.getOrCreateThread(
+          user.id,
+          this.assistantConfig.assistantId,
+        ),
+        this.userService.getTokenBalance(user.id),
+      ]);
 
-    if (userTokens < estimatedTokens) {
+      if (userTokens < estimatedTokens) {
+        return this.localizationService.translate(
+          TranslationKey.INSUFFICIENT_TOKENS,
+          user.languageCode,
+        );
+      }
+
+      const runResult = await this.assistantService.runAssistant({
+        threadId,
+        assistantId: this.assistantConfig.assistantId,
+        input: {
+          messages: {
+            role: 'user',
+            content: message,
+          },
+        },
+        metadata: {
+          languageCode: user.languageCode,
+        },
+        config: {},
+      });
+
+      this.logger.debug(runResult);
+
+      const actualTokens = this.calculateActualTokenUsage(runResult);
+
+      try {
+        await this.userService.spendTokens(
+          user.id,
+          actualTokens,
+          `Message processing: ${message.substring(0, 50)}...`,
+        );
+      } catch (error) {
+        this.logger.error('Error spending tokens:', error);
+        return this.localizationService.translate(
+          TranslationKey.ERROR_PROCESSING_MESSAGE,
+          user.languageCode,
+        );
+      }
+
+      if (runResult.messages && runResult.messages.length > 0) {
+        const lastMessage = runResult.messages[runResult.messages.length - 1];
+        return lastMessage.content;
+      } else {
+        return this.localizationService.translate(
+          TranslationKey.NO_RESPONSE,
+          user.languageCode,
+        );
+      }
+    } catch (error) {
+      this.logger.error('Error processing message:', error);
       return this.localizationService.translate(
-        'insufficientTokens',
+        TranslationKey.ERROR_PROCESSING_MESSAGE,
         user.languageCode,
       );
-    }
-
-    const runResult = await this.assistantService.runAssistant({
-      threadId,
-      assistantId: this.assistantConfig.assistantId,
-      input: {
-        messages: {
-          role: 'user',
-          content: message,
-        },
-      },
-      metadata: {
-        languageCode: user.languageCode,
-      },
-      config: {},
-    });
-
-    this.logger.debug(runResult);
-
-    const actualTokens = this.calculateActualTokenUsage(runResult);
-
-    // Spend tokens asynchronously without waiting for the result
-    this.userService
-      .spendTokens(
-        user.id,
-        actualTokens,
-        `Message processing: ${message.substring(0, 50)}...`,
-      )
-      .catch((error) => this.logger.error(error));
-
-    if (runResult.messages && runResult.messages.length > 0) {
-      const lastMessage = runResult.messages[runResult.messages.length - 1];
-      return lastMessage.content;
-    } else {
-      return 'Sorry, no response from the assistant.';
     }
   }
 
@@ -360,7 +383,9 @@ export class BotService {
   }
 
   private calculateActualTokenUsage(runResult: any): number {
-    return runResult.usage?.total_tokens ?? 0;
+    const messages = runResult.messages || [];
+    const lastMessage = messages[messages.length - 1];
+    return lastMessage?.usage_metadata?.total_tokens ?? 0;
   }
 
   private async handleUser(ctx: Context) {

@@ -21,6 +21,7 @@ import { BotService } from './bot.service';
           token: botConfig.token,
           middlewares: [session()],
           launchOptions: {
+            dropPendingUpdates: true,
             webhook: {
               domain: botConfig.webhookDomain,
               hookPath: botConfig.webhookPath,

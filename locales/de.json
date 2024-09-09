@@ -10,5 +10,8 @@
   "buyTokensUsage": "Verwendung: /buy_tokens <Menge>",
   "buyTokensTitle": "Token kaufen",
   "buyTokensDescription": "Kaufen Sie {amount} Token für Ihr Konto",
-  "buyTokensSuccess": "Erfolgreich {amount} Token gekauft!"
+  "buyTokensSuccess": "Erfolgreich {amount} Token gekauft!",
+  "rateLimitExceeded": "Entschuldigung, Sie haben das Anfragelimit überschritten. Bitte versuchen Sie es später erneut.",
+  "noResponse": "Entschuldigung, keine Antwort erhalten.",
+  "errorProcessingMessage": "Es gab einen Fehler bei der Verarbeitung Ihrer Nachricht. Bitte versuchen Sie es erneut."
 }

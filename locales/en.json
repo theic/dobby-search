@@ -10,5 +10,8 @@
   "buyTokensUsage": "Usage: /buy_tokens <amount>",
   "buyTokensTitle": "Buy Tokens",
   "buyTokensDescription": "Purchase {amount} tokens for your account",
-  "buyTokensSuccess": "Successfully purchased {amount} tokens!"
+  "buyTokensSuccess": "Successfully purchased {amount} tokens!",
+  "rateLimitExceeded": "Sorry, you have exceeded the request limit. Please try again later.",
+  "noResponse": "Sorry, no response received.",
+  "errorProcessingMessage": "There was an error processing your message. Please try again."
 }
