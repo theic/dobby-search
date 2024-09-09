@@ -228,7 +228,8 @@ export class BotService {
     const user = await this.getOrCreateUserFromSession(ctx);
 
     const message = ctx.message['text'];
-    const placeholderMessage = await ctx.reply('...');
+    const loadingEmoji = '⏳';
+    const placeholderMessage = await ctx.reply(loadingEmoji);
 
     const startTime = Date.now();
     const response = await this.processMessage(user, message);
