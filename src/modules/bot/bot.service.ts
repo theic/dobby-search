@@ -9,7 +9,7 @@ import { UserType } from '@modules/user/enum';
 import { User } from '@modules/user/user.model';
 import { UserService } from '@modules/user/user.service';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ConfigType } from '@shared/enum';
 import { Cache } from 'cache-manager';
@@ -33,6 +33,7 @@ export class BotService {
   private readonly botConfig: BotConfig;
   private readonly serverConfig: ServerConfig;
   private rateLimiter: RateLimiterMemory;
+  private readonly logger = new Logger(BotService.name);
 
   constructor(
     private readonly userService: UserService,
@@ -100,12 +101,7 @@ export class BotService {
         ctx.telegram
           .sendMessage(user.telegramId, message)
           .then(() => sentCount++)
-          .catch((error) =>
-            console.error(
-              `Failed to send message to user ${user.telegramId}:`,
-              error,
-            ),
-          ),
+          .catch((error) => this.logger.error(error)),
       );
       await Promise.all(promises);
     }
@@ -239,9 +235,7 @@ export class BotService {
     const endTime = Date.now();
 
     const processingTime = endTime - startTime;
-    console.log(`Response time: ${processingTime}ms`);
-
-    console.log('response', response);
+    this.logger.debug(`Response time: ${processingTime}ms`);
 
     let responseText = response;
     if (this.serverConfig.nodeEnv === 'development') {
@@ -324,7 +318,7 @@ export class BotService {
       );
     }
 
-    const runResultPromise = this.assistantService.runAssistant({
+    const runResult = await this.assistantService.runAssistant({
       threadId,
       assistantId: this.assistantConfig.assistantId,
       input: {
@@ -333,14 +327,13 @@ export class BotService {
           content: message,
         },
       },
-      metadata: {},
+      metadata: {
+        languageCode: user.languageCode,
+      },
       config: {},
     });
 
-    const [runResult, threadState] = await Promise.all([
-      runResultPromise,
-      this.assistantService.getThreadState({ threadId }),
-    ]);
+    this.logger.debug(runResult);
 
     const actualTokens = this.calculateActualTokenUsage(runResult);
 
@@ -351,11 +344,11 @@ export class BotService {
         actualTokens,
         `Message processing: ${message.substring(0, 50)}...`,
       )
-      .catch((error) => console.error('Error spending tokens:', error));
+      .catch((error) => this.logger.error(error));
 
-    if (threadState.values.messages.length > 0) {
-      return threadState.values.messages[threadState.values.messages.length - 1]
-        .content;
+    if (runResult.messages && runResult.messages.length > 0) {
+      const lastMessage = runResult.messages[runResult.messages.length - 1];
+      return lastMessage.content;
     } else {
       return 'Sorry, no response from the assistant.';
     }
