@@ -223,8 +223,6 @@ export class BotService {
       return;
     }
 
-    await ctx.sendChatAction('typing');
-
     const user = await this.getOrCreateUserFromSession(ctx);
 
     const message = ctx.message['text'];
