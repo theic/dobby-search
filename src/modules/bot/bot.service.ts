@@ -1,5 +1,6 @@
 import { AssistantConfig } from '@config/assistant.config';
 import { BotConfig } from '@config/bot.config';
+import { ServerConfig } from '@config/server.config';
 import { FirebaseService } from '@firebase/firebase.service';
 import { AssistantService } from '@modules/assistant/assistant.service';
 import { LocalizationService } from '@modules/localization/localization.service';
@@ -7,18 +8,31 @@ import { TokenTransactionType } from '@modules/token-transaction/token-transacti
 import { UserType } from '@modules/user/enum';
 import { User } from '@modules/user/user.model';
 import { UserService } from '@modules/user/user.service';
-import { Injectable } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ConfigType } from '@shared/enum';
+import { Cache } from 'cache-manager';
 import { Command, Ctx, On, Start, Update } from 'nestjs-telegraf';
+import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { Context } from 'telegraf';
 import { InlineQuery } from 'telegraf/typings/core/types/typegram';
+
+interface SessionData {
+  user: User;
+}
+
+interface BotContext extends Context {
+  session: SessionData;
+}
 
 @Injectable()
 @Update()
 export class BotService {
   private readonly assistantConfig: AssistantConfig;
   private readonly botConfig: BotConfig;
+  private readonly serverConfig: ServerConfig;
+  private rateLimiter: RateLimiterMemory;
 
   constructor(
     private readonly userService: UserService,
@@ -26,11 +40,17 @@ export class BotService {
     private readonly assistantService: AssistantService,
     private readonly configService: ConfigService,
     private readonly localizationService: LocalizationService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {
     this.assistantConfig = this.configService.get<AssistantConfig>(
       ConfigType.ASSISTANT,
     );
     this.botConfig = this.configService.get<BotConfig>(ConfigType.BOT);
+    this.serverConfig = this.configService.get<ServerConfig>(ConfigType.SERVER);
+    this.rateLimiter = new RateLimiterMemory({
+      points: 5, // Number of points
+      duration: 60, // Per 60 seconds
+    });
   }
 
   @Start()
@@ -71,18 +91,23 @@ export class BotService {
     }
 
     const users = await this.userService.getAllUsers(UserType.USER);
+    const batchSize = 100; // Adjust based on your needs
     let sentCount = 0;
 
-    for (const user of users) {
-      try {
-        await ctx.telegram.sendMessage(user.telegramId, message);
-        sentCount++;
-      } catch (error) {
-        console.error(
-          `Failed to send message to user ${user.telegramId}:`,
-          error,
-        );
-      }
+    for (let i = 0; i < users.length; i += batchSize) {
+      const batch = users.slice(i, i + batchSize);
+      const promises = batch.map((user) =>
+        ctx.telegram
+          .sendMessage(user.telegramId, message)
+          .then(() => sentCount++)
+          .catch((error) =>
+            console.error(
+              `Failed to send message to user ${user.telegramId}:`,
+              error,
+            ),
+          ),
+      );
+      await Promise.all(promises);
     }
 
     const sentMessage = this.localizationService.translate(
@@ -192,12 +217,56 @@ export class BotService {
   }
 
   @On('message')
-  async onMessage(@Ctx() ctx: Context) {
+  async onMessage(@Ctx() ctx: BotContext) {
+    try {
+      await this.rateLimiter.consume(ctx.from.id);
+    } catch (error) {
+      await ctx.reply(
+        'You are sending messages too quickly. Please wait a moment and try again.',
+      );
+      return;
+    }
+
     await ctx.sendChatAction('typing');
-    const user = await this.handleUser(ctx);
+
+    const user = await this.getOrCreateUserFromSession(ctx);
+
     const message = ctx.message['text'];
+    const placeholderMessage = await ctx.reply('...');
+
+    const startTime = Date.now();
     const response = await this.processMessage(user, message);
-    await ctx.reply(response);
+    const endTime = Date.now();
+
+    const processingTime = endTime - startTime;
+    console.log(`Response time: ${processingTime}ms`);
+
+    console.log('response', response);
+
+    let responseText = response;
+    if (this.serverConfig.nodeEnv === 'development') {
+      responseText += `\n\nResponse time: ${processingTime}ms`;
+    }
+
+    await ctx.telegram.editMessageText(
+      ctx.chat.id,
+      placeholderMessage.message_id,
+      null,
+      responseText,
+    );
+  }
+
+  private async getOrCreateUserFromSession(ctx: BotContext): Promise<User> {
+    const cacheKey = `user:${ctx.from.id}`;
+    let user = await this.cacheManager.get<User>(cacheKey);
+
+    if (!user) {
+      user = await this.handleUser(ctx);
+      await this.cacheManager.set(cacheKey, user, 3600000); // Cache for 1 hour
+    }
+
+    ctx.session = { user };
+    return user;
   }
 
   @On('inline_query')
@@ -238,16 +307,16 @@ export class BotService {
   }
 
   private async processMessage(user: User, message: string): Promise<string> {
-    const threadId = await this.userService.getOrCreateThread(
-      user.id,
-      this.assistantConfig.assistantId,
-    );
-
-    // Estimate token usage (you'll need to implement this based on your needs)
     const estimatedTokens = this.estimateTokenUsage(message);
 
-    // Check if user has enough tokens
-    const userTokens = await this.userService.getTokenBalance(user.id);
+    const [threadId, userTokens] = await Promise.all([
+      this.userService.getOrCreateThread(
+        user.id,
+        this.assistantConfig.assistantId,
+      ),
+      this.userService.getTokenBalance(user.id),
+    ]);
+
     if (userTokens < estimatedTokens) {
       return this.localizationService.translate(
         'insufficientTokens',
@@ -255,7 +324,7 @@ export class BotService {
       );
     }
 
-    const runResult = await this.assistantService.runAssistant({
+    const runResultPromise = this.assistantService.runAssistant({
       threadId,
       assistantId: this.assistantConfig.assistantId,
       input: {
@@ -268,35 +337,38 @@ export class BotService {
       config: {},
     });
 
-    // Calculate actual token usage (you'll need to implement this based on the response)
+    const [runResult, threadState] = await Promise.all([
+      runResultPromise,
+      this.assistantService.getThreadState({ threadId }),
+    ]);
+
     const actualTokens = this.calculateActualTokenUsage(runResult);
 
-    // Deduct tokens from user's balance
-    await this.userService.spendTokens(
-      user.id,
-      actualTokens,
-      `Message processing: ${message.substring(0, 50)}...`,
-    );
+    // Spend tokens asynchronously without waiting for the result
+    this.userService
+      .spendTokens(
+        user.id,
+        actualTokens,
+        `Message processing: ${message.substring(0, 50)}...`,
+      )
+      .catch((error) => console.error('Error spending tokens:', error));
 
-    const threadState = await this.assistantService.getThreadState({
-      threadId,
-    });
-
-    return threadState.values.messages.length > 0
-      ? threadState.values.messages[threadState.values.messages.length - 1]
-          .content
-      : 'Sorry, no response from the assistant.';
+    if (threadState.values.messages.length > 0) {
+      return threadState.values.messages[threadState.values.messages.length - 1]
+        .content;
+    } else {
+      return 'Sorry, no response from the assistant.';
+    }
   }
 
   private estimateTokenUsage(message: string): number {
-    // TODO: Implement a more sophisticated token estimation method
+    // Implement a more accurate estimation based on your model's specifics
+    // This is a simple example and should be adjusted based on your needs
     return Math.ceil(message.length / 4);
   }
 
   private calculateActualTokenUsage(runResult: any): number {
-    const messages = runResult.messages || [];
-    const lastMessage = messages[messages.length - 1];
-    return lastMessage?.usage_metadata?.total_tokens ?? 0;
+    return runResult.usage?.total_tokens ?? 0;
   }
 
   private async handleUser(ctx: Context) {

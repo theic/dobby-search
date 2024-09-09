@@ -42,7 +42,7 @@ lerna-debug.log*
 .env.production.local
 .env.local
 
-.env.gcp.yaml
+.env.gcp.*.yaml
 
 example/development.json
 
@@ -61,3 +61,5 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Rest client
 *.http
+
+DEPLOY.md
