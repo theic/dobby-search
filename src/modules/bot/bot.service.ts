@@ -3,6 +3,7 @@ import { BotConfig } from '@config/bot.config';
 import { ServerConfig } from '@config/server.config';
 import { FirebaseService } from '@firebase/firebase.service';
 import { AssistantService } from '@modules/assistant/assistant.service';
+import { RunAssistantStreamDto } from '@modules/assistant/dto';
 import { LocalizationService } from '@modules/localization/localization.service';
 import { TokenTransactionType } from '@modules/token-transaction/token-transaction.model';
 import { UserType } from '@modules/user/enum';
@@ -17,7 +18,7 @@ import { Cache } from 'cache-manager';
 import { Command, Ctx, On, Start, Update } from 'nestjs-telegraf';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { Context } from 'telegraf';
-import { InlineQuery } from 'telegraf/typings/core/types/typegram';
+import { MessageType } from '../assistant/enums/message-type.enum';
 
 interface SessionData {
   user: User;
@@ -102,7 +103,7 @@ export class BotService {
         ctx.telegram
           .sendMessage(user.telegramId, message)
           .then(() => sentCount++)
-          .catch((error) => this.logger.error(error)),
+          .catch((error) => Logger.error(error)),
       );
       await Promise.all(promises);
     }
@@ -231,29 +232,144 @@ export class BotService {
     const user = await this.getOrCreateUserFromSession(ctx);
 
     const message = ctx.message['text'];
-    const loadingEmoji = '⏳';
+    const loadingEmoji = 'Agent thinking...';
     const placeholderMessage = await ctx.reply(loadingEmoji);
 
-    setTimeout(async () => {
-      const startTime = Date.now();
-      const response = await this.processMessage(user, message);
-      const endTime = Date.now();
+    this.processMessage(user, message, ctx, placeholderMessage.message_id);
+  }
 
-      const processingTime = endTime - startTime;
-      this.logger.debug(`Response time: ${processingTime}ms`);
+  private async processMessage(
+    user: User,
+    message: string,
+    ctx: BotContext,
+    placeholderMessageId: number,
+  ): Promise<void> {
+    try {
+      const estimatedTokens = this.estimateTokenUsage(message);
+      const [threadId, userTokens] = await Promise.all([
+        this.userService.getOrCreateThread(
+          user.id,
+          this.assistantConfig.assistantId,
+        ),
+        this.userService.getTokenBalance(user.id),
+      ]);
 
-      let responseText = response;
-      if (this.serverConfig.nodeEnv === 'development') {
-        responseText += `\n\nResponse time: ${processingTime}ms`;
+      if (userTokens < estimatedTokens) {
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          placeholderMessageId,
+          null,
+          this.localizationService.translate(
+            TranslationKey.INSUFFICIENT_TOKENS,
+            user.languageCode,
+          ),
+        );
+        return;
       }
 
+      const runAssistantStreamDto: RunAssistantStreamDto = {
+        threadId,
+        assistantId: this.assistantConfig.assistantId,
+        input: {
+          messages: [
+            {
+              role: 'user',
+              content: message,
+            },
+          ],
+        },
+        metadata: {
+          languageCode: user.languageCode,
+        },
+        config: {},
+        stream_mode: 'updates',
+      };
+
+      const conversationObservable =
+        await this.assistantService.runAssistantStream(runAssistantStreamDto);
+
+      let responseMessage = '';
+      let lastSentMessage = '';
+
+      conversationObservable.subscribe({
+        next: (update) => {
+          console.log(update.type, update);
+
+          if (update.type === MessageType.AGENT_MESSAGE) {
+            responseMessage += update.data;
+
+            // Update the message every 2 seconds to avoid rate limiting
+            if (responseMessage !== lastSentMessage) {
+              ctx.telegram
+                .editMessageText(
+                  ctx.chat.id,
+                  placeholderMessageId,
+                  null,
+                  responseMessage,
+                  { parse_mode: 'Markdown' },
+                )
+                .catch((error) => {
+                  if (
+                    error.description !== 'Bad Request: message is not modified'
+                  ) {
+                    this.logger.error('Error updating message:', error);
+                  }
+                });
+              lastSentMessage = responseMessage;
+            }
+          } else if (update.type === MessageType.TOOL_MESSAGE) {
+            ctx.telegram.editMessageText(
+              ctx.chat.id,
+              placeholderMessageId,
+              null,
+              'Tool answer received',
+              { parse_mode: 'Markdown' },
+            );
+          } else if (update.type === MessageType.TOOL_CALL) {
+            ctx.telegram.editMessageText(
+              ctx.chat.id,
+              placeholderMessageId,
+              null,
+              'Tool call',
+              { parse_mode: 'Markdown' },
+            );
+          }
+        },
+        complete: async () => {
+          // Calculate and deduct tokens
+          const actualTokens = this.calculateActualTokenUsage(responseMessage);
+          await this.userService.spendTokens(
+            user.id,
+            actualTokens,
+            'Message processing',
+          );
+        },
+        error: async (error) => {
+          this.logger.error('Error in assistant stream:', error);
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            placeholderMessageId,
+            null,
+            this.localizationService.translate(
+              TranslationKey.ERROR_PROCESSING_MESSAGE,
+              user.languageCode,
+            ),
+          );
+        },
+      });
+    } catch (error) {
+      console.log('Process message error:', error);
+      Logger.error(JSON.stringify(error));
       await ctx.telegram.editMessageText(
         ctx.chat.id,
-        placeholderMessage.message_id,
+        placeholderMessageId,
         null,
-        responseText,
+        this.localizationService.translate(
+          TranslationKey.ERROR_PROCESSING_MESSAGE,
+          user.languageCode,
+        ),
       );
-    }, 0);
+    }
   }
 
   private async getOrCreateUserFromSession(ctx: BotContext): Promise<User> {
@@ -267,113 +383,6 @@ export class BotService {
 
     ctx.session = { user };
     return user;
-  }
-
-  @On('inline_query')
-  async onInlineQuery(@Ctx() ctx: Context) {
-    const inlineQuery = ctx.inlineQuery as InlineQuery;
-    const query = inlineQuery.query;
-
-    if (!query) {
-      await ctx.answerInlineQuery([
-        {
-          type: 'article',
-          id: '1',
-          title: 'Type in search your request',
-          input_message_content: {
-            message_text: 'Type in search your request',
-          },
-        },
-      ]);
-      return;
-    }
-
-    const user = await this.handleUser(ctx);
-    const response = await this.processMessage(user, query);
-
-    const result = [
-      {
-        type: 'article',
-        id: '1',
-        title: 'AI Response',
-        description: response.substring(0, 100) + '...',
-        input_message_content: {
-          message_text: response,
-        },
-      },
-    ] as const;
-
-    await ctx.answerInlineQuery(result);
-  }
-
-  private async processMessage(user: User, message: string): Promise<string> {
-    try {
-      const estimatedTokens = this.estimateTokenUsage(message);
-
-      const [threadId, userTokens] = await Promise.all([
-        this.userService.getOrCreateThread(
-          user.id,
-          this.assistantConfig.assistantId,
-        ),
-        this.userService.getTokenBalance(user.id),
-      ]);
-
-      if (userTokens < estimatedTokens) {
-        return this.localizationService.translate(
-          TranslationKey.INSUFFICIENT_TOKENS,
-          user.languageCode,
-        );
-      }
-
-      const runResult = await this.assistantService.runAssistant({
-        threadId,
-        assistantId: this.assistantConfig.assistantId,
-        input: {
-          messages: {
-            role: 'user',
-            content: message,
-          },
-        },
-        metadata: {
-          languageCode: user.languageCode,
-        },
-        config: {},
-      });
-
-      this.logger.debug(runResult);
-
-      const actualTokens = this.calculateActualTokenUsage(runResult);
-
-      try {
-        await this.userService.spendTokens(
-          user.id,
-          actualTokens,
-          `Message processing: ${message.substring(0, 50)}...`,
-        );
-      } catch (error) {
-        this.logger.error('Error spending tokens:', error);
-        return this.localizationService.translate(
-          TranslationKey.ERROR_PROCESSING_MESSAGE,
-          user.languageCode,
-        );
-      }
-
-      if (runResult.messages && runResult.messages.length > 0) {
-        const lastMessage = runResult.messages[runResult.messages.length - 1];
-        return lastMessage.content;
-      } else {
-        return this.localizationService.translate(
-          TranslationKey.NO_RESPONSE,
-          user.languageCode,
-        );
-      }
-    } catch (error) {
-      this.logger.error('Error processing message:', error);
-      return this.localizationService.translate(
-        TranslationKey.ERROR_PROCESSING_MESSAGE,
-        user.languageCode,
-      );
-    }
   }
 
   private estimateTokenUsage(message: string): number {

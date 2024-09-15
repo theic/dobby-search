@@ -3,15 +3,19 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ConfigType } from '@shared/enum';
-import { firstValueFrom } from 'rxjs';
+import axios from 'axios';
+import { firstValueFrom, Observable, Subject } from 'rxjs';
+import { Readable } from 'stream';
 import {
   CreateAssistantDto,
   CreateThreadDto,
   GetThreadStateDto,
   RunAssistantDto,
+  RunAssistantStreamDto,
   UpdateAssistantDto,
   UpdateThreadStateDto,
 } from './dto';
+import { MessageType } from './enums/message-type.enum';
 
 @Injectable()
 export class AssistantService {
@@ -89,8 +93,128 @@ export class AssistantService {
       );
       return response.data;
     } catch (error) {
-      this.logger.error(error);
+      Logger.error(error);
       throw new Error('Failed to run assistant');
+    }
+  }
+
+  async runAssistantStream({
+    threadId,
+    assistantId,
+    input,
+    metadata,
+    config,
+    stream_mode,
+  }: RunAssistantStreamDto): Promise<Observable<any>> {
+    const url = `${this.assistantConfig.baseUrl}/threads/${threadId}/runs/stream`;
+    const subject = new Subject<any>();
+
+    try {
+      const response = await axios({
+        method: 'post',
+        url,
+        data: {
+          assistant_id: assistantId,
+          input,
+          metadata,
+          config,
+          stream_mode,
+        },
+        headers: this.getHeaders(),
+        responseType: 'stream',
+      });
+
+      const stream = response.data as Readable;
+
+      stream.on('data', (chunk) => {
+        const events = chunk.toString().split('\n\n').filter(Boolean);
+        events.forEach((event) => this.processEvent(event, subject));
+      });
+
+      stream.on('end', () => {
+        this.logger.log('Stream ended.');
+        subject.complete();
+      });
+
+      stream.on('error', (error) => {
+        this.logger.error('Stream error:', error.message);
+        subject.error(error);
+      });
+    } catch (error) {
+      this.logger.error('Error during stream:', error.message);
+      subject.error(error);
+    }
+
+    return subject.asObservable();
+  }
+
+  private processEvent(event: string, subject: Subject<any>) {
+    const lines = event.split('\n');
+    const eventType =
+      lines
+        .find((line) => line.startsWith('event:'))
+        ?.replace('event: ', '')
+        .trim() || '';
+    const eventDataString =
+      lines
+        .find((line) => line.startsWith('data:'))
+        ?.replace('data: ', '')
+        .trim() || '';
+
+    let eventData: any = null;
+    try {
+      eventData = eventDataString && JSON.parse(eventDataString);
+    } catch (error) {
+      this.logger.error('Error parsing event data:', eventDataString);
+    }
+
+    if (eventType && eventData) {
+      this.handleEventData(eventType, eventData, subject);
+    }
+  }
+
+  private handleEventData(
+    eventType: string,
+    eventData: any,
+    subject: Subject<any>,
+  ) {
+    switch (eventType) {
+      case 'metadata':
+        this.logger.log(`Metadata received: ${JSON.stringify(eventData)}`);
+        break;
+      case 'updates':
+        this.logger.log(`Update received: ${JSON.stringify(eventData)}`);
+        this.processUpdate(eventData, subject);
+        break;
+      case 'heartbeat':
+        this.logger.log('Heartbeat received');
+        break;
+      default:
+        this.logger.log(`Unknown event type: ${eventType}`);
+    }
+  }
+
+  private processUpdate(data: any, subject: Subject<any>) {
+    if (data.agent?.messages) {
+      data.agent.messages.forEach((message) => {
+        if (message.content) {
+          subject.next({
+            type: MessageType.AGENT_MESSAGE,
+            data: message.content,
+          });
+        }
+        if (message.tool_calls) {
+          message.tool_calls.forEach((toolCall) => {
+            subject.next({ type: MessageType.TOOL_CALL, data: toolCall });
+          });
+        }
+      });
+    }
+
+    if (data.tools?.messages) {
+      data.tools.messages.forEach((message) => {
+        subject.next({ type: MessageType.TOOL_MESSAGE, data: message.content });
+      });
     }
   }
 
