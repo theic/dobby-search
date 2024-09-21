@@ -15,5 +15,6 @@
   "noResponse": "Entschuldigung, keine Antwort erhalten.",
   "errorProcessingMessage": "Es gab einen Fehler bei der Verarbeitung Ihrer Nachricht. Bitte versuchen Sie es erneut.",
   "toolAnswerReceived": "Verarbeitung externer Daten...",
-  "toolCallInitiated": "Zugriff auf zusätzliche Informationen..."
+  "toolCallInitiated": "Zugriff auf zusätzliche Informationen...",
+  "agentThinking": "Agent denkt nach..."
 }

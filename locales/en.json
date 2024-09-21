@@ -15,5 +15,6 @@
   "noResponse": "Sorry, no response received.",
   "errorProcessingMessage": "There was an error processing your message. Please try again.",
   "toolAnswerReceived": "Processing external data...",
-  "toolCallInitiated": "Accessing additional information..."
+  "toolCallInitiated": "Accessing additional information...",
+  "agentThinking": "Agent thinking..."
 }

@@ -15,5 +15,6 @@
   "noResponse": "Désolé, aucune réponse reçue.",
   "errorProcessingMessage": "Une erreur s'est produite lors du traitement de votre message. Veuillez réessayer.",
   "toolAnswerReceived": "Traitement des données externes...",
-  "toolCallInitiated": "Accès aux informations supplémentaires..."
+  "toolCallInitiated": "Accès aux informations supplémentaires...",
+  "agentThinking": "L'agent réfléchit..."
 }

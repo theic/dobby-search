@@ -298,7 +298,10 @@ export class BotService {
     const user = await this.getOrCreateUserFromSession(ctx);
 
     const message = ctx.message['text'];
-    const loadingMessage = 'Agent thinking...';
+    const loadingMessage = this.localizationService.translate(
+      TranslationKey.AGENT_THINKING,
+      user.languageCode,
+    );
     const placeholderMessage = await ctx.reply(loadingMessage);
 
     this.processMessage(user, message, ctx, placeholderMessage.message_id);

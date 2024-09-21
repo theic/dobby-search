@@ -15,4 +15,5 @@ export enum TranslationKey {
   ERROR_PROCESSING_MESSAGE = 'errorProcessingMessage',
   TOOL_ANSWER_RECEIVED = 'toolAnswerReceived',
   TOOL_CALL_INITIATED = 'toolCallInitiated',
+  AGENT_THINKING = 'agentThinking',
 }
