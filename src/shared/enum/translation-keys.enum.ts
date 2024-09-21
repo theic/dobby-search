@@ -13,4 +13,6 @@ export enum TranslationKey {
   INSUFFICIENT_TOKENS = 'insufficientTokens',
   NO_RESPONSE = 'noResponse',
   ERROR_PROCESSING_MESSAGE = 'errorProcessingMessage',
+  TOOL_ANSWER_RECEIVED = 'toolAnswerReceived',
+  TOOL_CALL_INITIATED = 'toolCallInitiated',
 }

@@ -13,5 +13,7 @@
   "buyTokensSuccess": "Acquistati con successo {amount} token!",
   "rateLimitExceeded": "Spiacente, hai superato il limite di richieste. Per favore, riprova più tardi.",
   "noResponse": "Spiacente, nessuna risposta ricevuta.",
-  "errorProcessingMessage": "Si è verificato un errore durante l'elaborazione del tuo messaggio. Per favore, riprova."
+  "errorProcessingMessage": "Si è verificato un errore durante l'elaborazione del tuo messaggio. Per favore, riprova.",
+  "toolAnswerReceived": "Elaborazione dei dati esterni...",
+  "toolCallInitiated": "Accesso alle informazioni aggiuntive..."
 }

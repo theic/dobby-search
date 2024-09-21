@@ -1,5 +1,6 @@
 export enum MessageType {
-  AGENT_MESSAGE = 'agentMessage',
-  TOOL_CALL = 'toolCall',
-  TOOL_MESSAGE = 'toolMessage',
+  AGENT_MESSAGE = 'AGENT_MESSAGE',
+  TOOL_CALL = 'TOOL_CALL',
+  TOOL_MESSAGE = 'TOOL_MESSAGE',
+  TOKEN_USAGE = 'TOKEN_USAGE',
 }

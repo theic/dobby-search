@@ -10,6 +10,7 @@ import { ConfigType } from '@shared/enum';
 import { TelegrafModule } from 'nestjs-telegraf';
 import { session } from 'telegraf';
 import { BotService } from './bot.service';
+import { StreamProcessingService } from './stream-processing.service';
 
 @Module({
   imports: [
@@ -37,6 +38,6 @@ import { BotService } from './bot.service';
     MessageModule,
     LocalizationModule,
   ],
-  providers: [BotService],
+  providers: [BotService, StreamProcessingService],
 })
 export class BotModule {}

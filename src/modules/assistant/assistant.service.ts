@@ -10,12 +10,12 @@ import {
   CreateAssistantDto,
   CreateThreadDto,
   GetThreadStateDto,
-  RunAssistantDto,
   RunAssistantStreamDto,
   UpdateAssistantDto,
   UpdateThreadStateDto,
 } from './dto';
 import { MessageType } from './enums/message-type.enum';
+import { TokenUsage } from './interfaces/token-usage.interface';
 
 @Injectable()
 export class AssistantService {
@@ -73,40 +73,15 @@ export class AssistantService {
     return response.data;
   }
 
-  async runAssistant({
-    threadId,
-    assistantId,
-    input,
-    metadata,
-    config,
-  }: RunAssistantDto) {
-    console.debug('runAssistant', threadId, { input });
-    try {
-      const response = await firstValueFrom(
-        this.httpService.post(
-          `${this.assistantConfig.baseUrl}/threads/${threadId}/runs/wait`,
-          { assistant_id: assistantId, input, metadata, config },
-          {
-            headers: this.getHeaders(),
-          },
-        ),
-      );
-      return response.data;
-    } catch (error) {
-      Logger.error(error);
-      throw new Error('Failed to run assistant');
-    }
-  }
-
   async runAssistantStream({
     threadId,
     assistantId,
     input,
     metadata,
     config,
-    stream_mode,
   }: RunAssistantStreamDto): Promise<Observable<any>> {
-    const url = `${this.assistantConfig.baseUrl}/threads/${threadId}/runs/stream`;
+    console.debug('runAssistantStream', threadId, { input });
+    const url = `${this.assistantConfig.baseUrl}/runs/stream`;
     const subject = new Subject<any>();
 
     try {
@@ -118,7 +93,9 @@ export class AssistantService {
           input,
           metadata,
           config,
-          stream_mode,
+          stream_mode: 'updates',
+          on_completion: 'delete',
+          on_disconnect: 'cancel',
         },
         headers: this.getHeaders(),
         responseType: 'stream',
@@ -195,6 +172,8 @@ export class AssistantService {
   }
 
   private processUpdate(data: any, subject: Subject<any>) {
+    let tokenUsage: TokenUsage | undefined;
+
     if (data.agent?.messages) {
       data.agent.messages.forEach((message) => {
         if (message.content) {
@@ -208,6 +187,12 @@ export class AssistantService {
             subject.next({ type: MessageType.TOOL_CALL, data: toolCall });
           });
         }
+        // Extract token usage from the last message
+        if (message.usage_metadata?.total_tokens) {
+          tokenUsage = {
+            totalTokens: message.usage_metadata.total_tokens,
+          };
+        }
       });
     }
 
@@ -215,6 +200,11 @@ export class AssistantService {
       data.tools.messages.forEach((message) => {
         subject.next({ type: MessageType.TOOL_MESSAGE, data: message.content });
       });
+    }
+
+    // Send token usage as a separate message if available
+    if (tokenUsage) {
+      subject.next({ type: MessageType.TOKEN_USAGE, data: tokenUsage });
     }
   }
 

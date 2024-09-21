@@ -13,5 +13,7 @@
   "buyTokensSuccess": "Successfully purchased {amount} tokens!",
   "rateLimitExceeded": "Sorry, you have exceeded the request limit. Please try again later.",
   "noResponse": "Sorry, no response received.",
-  "errorProcessingMessage": "There was an error processing your message. Please try again."
+  "errorProcessingMessage": "There was an error processing your message. Please try again.",
+  "toolAnswerReceived": "Processing external data...",
+  "toolCallInitiated": "Accessing additional information..."
 }

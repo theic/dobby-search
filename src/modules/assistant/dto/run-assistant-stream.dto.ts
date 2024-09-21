@@ -4,5 +4,4 @@ export class RunAssistantStreamDto {
   input: any;
   metadata?: Record<string, any>;
   config?: Record<string, any>;
-  stream_mode?: string;
 }

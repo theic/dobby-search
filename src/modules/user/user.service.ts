@@ -120,9 +120,6 @@ export class UserService {
     description: string,
   ): Promise<User> {
     const user = await this.getUserById(userId);
-    if (user.tokenBalance < amount) {
-      throw new Error('Insufficient token balance');
-    }
     user.tokenBalance -= amount;
     const updatedUser = await this.userRepository.update(userId, user);
 

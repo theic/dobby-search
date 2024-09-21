@@ -18,15 +18,10 @@ import { Cache } from 'cache-manager';
 import { Command, Ctx, On, Start, Update } from 'nestjs-telegraf';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { Context } from 'telegraf';
+import { InlineQuery } from 'telegraf/typings/core/types/typegram';
 import { MessageType } from '../assistant/enums/message-type.enum';
-
-interface SessionData {
-  user: User;
-}
-
-interface BotContext extends Context {
-  session: SessionData;
-}
+import { BotContext } from './interfaces';
+import { StreamProcessingService } from './stream-processing.service';
 
 @Injectable()
 @Update()
@@ -43,6 +38,7 @@ export class BotService {
     private readonly assistantService: AssistantService,
     private readonly configService: ConfigService,
     private readonly localizationService: LocalizationService,
+    private readonly streamProcessingService: StreamProcessingService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {
     this.assistantConfig = this.configService.get<AssistantConfig>(
@@ -214,6 +210,76 @@ export class BotService {
     }
   }
 
+  @On('inline_query')
+  async onInlineQuery(@Ctx() ctx: Context) {
+    const inlineQuery = ctx.inlineQuery as InlineQuery;
+    const query = inlineQuery.query;
+
+    if (!query) {
+      await ctx.answerInlineQuery([
+        {
+          type: 'article',
+          id: '1',
+          title: 'Type in search your request',
+          input_message_content: {
+            message_text: 'Type in search your request',
+          },
+        },
+      ]);
+      return;
+    }
+
+    const user = await this.handleUser(ctx);
+    const [threadId] = await this.userService.getOrCreateThread(
+      user.id,
+      this.assistantConfig.assistantId,
+    );
+
+    const stream = await this.assistantService.runAssistantStream({
+      threadId,
+      assistantId: this.assistantConfig.assistantId,
+      input: query,
+      metadata: { userId: user.id },
+    });
+
+    let fullResponse = '';
+    stream.subscribe({
+      next: (chunk) => {
+        if (chunk.type === MessageType.AGENT_MESSAGE) {
+          fullResponse += chunk.data;
+        }
+      },
+      complete: async () => {
+        const result = [
+          {
+            type: 'article',
+            id: '1',
+            title: 'AI Response',
+            description: fullResponse.substring(0, 100) + '...',
+            input_message_content: {
+              message_text: fullResponse,
+            },
+          },
+        ] as const;
+
+        await ctx.answerInlineQuery(result);
+      },
+      error: async (error) => {
+        console.error('Error in stream:', error);
+        await ctx.answerInlineQuery([
+          {
+            type: 'article',
+            id: '1',
+            title: 'Error',
+            input_message_content: {
+              message_text: 'An error occurred while processing your request.',
+            },
+          },
+        ]);
+      },
+    });
+  }
+
   @On('message')
   async onMessage(@Ctx() ctx: BotContext) {
     console.debug('onMessage', ctx.message['text']);
@@ -232,8 +298,8 @@ export class BotService {
     const user = await this.getOrCreateUserFromSession(ctx);
 
     const message = ctx.message['text'];
-    const loadingEmoji = 'Agent thinking...';
-    const placeholderMessage = await ctx.reply(loadingEmoji);
+    const loadingMessage = 'Agent thinking...';
+    const placeholderMessage = await ctx.reply(loadingMessage);
 
     this.processMessage(user, message, ctx, placeholderMessage.message_id);
   }
@@ -271,95 +337,23 @@ export class BotService {
         threadId,
         assistantId: this.assistantConfig.assistantId,
         input: {
-          messages: [
-            {
-              role: 'user',
-              content: message,
-            },
-          ],
+          messages: [{ role: 'user', content: message }],
         },
-        metadata: {
-          languageCode: user.languageCode,
-        },
+        metadata: { languageCode: user.languageCode },
         config: {},
-        stream_mode: 'updates',
       };
 
       const conversationObservable =
         await this.assistantService.runAssistantStream(runAssistantStreamDto);
 
-      let responseMessage = '';
-      let lastSentMessage = '';
-
-      conversationObservable.subscribe({
-        next: (update) => {
-          console.log(update.type, update);
-
-          if (update.type === MessageType.AGENT_MESSAGE) {
-            responseMessage += update.data;
-
-            // Update the message every 2 seconds to avoid rate limiting
-            if (responseMessage !== lastSentMessage) {
-              ctx.telegram
-                .editMessageText(
-                  ctx.chat.id,
-                  placeholderMessageId,
-                  null,
-                  responseMessage,
-                  { parse_mode: 'Markdown' },
-                )
-                .catch((error) => {
-                  if (
-                    error.description !== 'Bad Request: message is not modified'
-                  ) {
-                    this.logger.error('Error updating message:', error);
-                  }
-                });
-              lastSentMessage = responseMessage;
-            }
-          } else if (update.type === MessageType.TOOL_MESSAGE) {
-            ctx.telegram.editMessageText(
-              ctx.chat.id,
-              placeholderMessageId,
-              null,
-              'Tool answer received',
-              { parse_mode: 'Markdown' },
-            );
-          } else if (update.type === MessageType.TOOL_CALL) {
-            ctx.telegram.editMessageText(
-              ctx.chat.id,
-              placeholderMessageId,
-              null,
-              'Tool call',
-              { parse_mode: 'Markdown' },
-            );
-          }
-        },
-        complete: async () => {
-          // Calculate and deduct tokens
-          const actualTokens = this.calculateActualTokenUsage(responseMessage);
-          await this.userService.spendTokens(
-            user.id,
-            actualTokens,
-            'Message processing',
-          );
-        },
-        error: async (error) => {
-          this.logger.error('Error in assistant stream:', error);
-          await ctx.telegram.editMessageText(
-            ctx.chat.id,
-            placeholderMessageId,
-            null,
-            this.localizationService.translate(
-              TranslationKey.ERROR_PROCESSING_MESSAGE,
-              user.languageCode,
-            ),
-          );
-        },
-      });
+      await this.streamProcessingService.processStream(
+        user,
+        conversationObservable,
+        ctx,
+        placeholderMessageId,
+      );
     } catch (error) {
-      console.log('Process message error:', error);
-      Logger.error(JSON.stringify(error));
+      this.logger.error('Error processing message:', error);
       await ctx.telegram.editMessageText(
         ctx.chat.id,
         placeholderMessageId,
@@ -389,12 +383,6 @@ export class BotService {
     // Implement a more accurate estimation based on your model's specifics
     // This is a simple example and should be adjusted based on your needs
     return Math.ceil(message.length / 4);
-  }
-
-  private calculateActualTokenUsage(runResult: any): number {
-    const messages = runResult.messages || [];
-    const lastMessage = messages[messages.length - 1];
-    return lastMessage?.usage_metadata?.total_tokens ?? 0;
   }
 
   private async handleUser(ctx: Context) {
