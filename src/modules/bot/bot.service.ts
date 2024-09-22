@@ -235,49 +235,89 @@ export class BotService {
       this.assistantConfig.assistantId,
     );
 
-    const stream = await this.assistantService.runAssistantStream({
-      threadId,
-      assistantId: this.assistantConfig.assistantId,
-      input: query,
-      metadata: { userId: user.id },
-    });
+    try {
+      const estimatedTokens = this.estimateTokenUsage(query);
+      const userTokens = await this.userService.getTokenBalance(user.id);
 
-    let fullResponse = '';
-    stream.subscribe({
-      next: (chunk) => {
-        if (chunk.type === MessageType.AGENT_MESSAGE) {
-          fullResponse += chunk.data;
-        }
-      },
-      complete: async () => {
-        const result = [
-          {
-            type: 'article',
-            id: '1',
-            title: 'AI Response',
-            description: fullResponse.substring(0, 100) + '...',
-            input_message_content: {
-              message_text: fullResponse,
-            },
-          },
-        ] as const;
-
-        await ctx.answerInlineQuery(result);
-      },
-      error: async (error) => {
-        console.error('Error in stream:', error);
+      if (userTokens < estimatedTokens) {
         await ctx.answerInlineQuery([
           {
             type: 'article',
             id: '1',
-            title: 'Error',
+            title: 'Insufficient Tokens',
             input_message_content: {
-              message_text: 'An error occurred while processing your request.',
+              message_text:
+                'You do not have enough tokens to perform this action.',
             },
           },
         ]);
-      },
-    });
+        return;
+      }
+
+      const runAssistantStreamDto: RunAssistantStreamDto = {
+        threadId,
+        assistantId: this.assistantConfig.assistantId,
+        input: {
+          messages: [{ role: 'user', content: query }],
+        },
+        metadata: { languageCode: user.languageCode, userId: user.id },
+        config: {},
+      };
+
+      const stream = await this.assistantService.runAssistantStream(
+        runAssistantStreamDto,
+      );
+
+      let fullResponse = '';
+      stream.subscribe({
+        next: (chunk) => {
+          if (chunk.type === MessageType.AGENT_MESSAGE) {
+            fullResponse += chunk.data;
+          }
+        },
+        error: async (error) => {
+          console.error('Error in stream:', error);
+          await ctx.answerInlineQuery([
+            {
+              type: 'article',
+              id: '1',
+              title: 'Error',
+              input_message_content: {
+                message_text:
+                  'An error occurred while processing your request.',
+              },
+            },
+          ]);
+        },
+        complete: async () => {
+          const result = [
+            {
+              type: 'article',
+              id: '1',
+              title: 'AI Response',
+              description: fullResponse.substring(0, 100) + '...',
+              input_message_content: {
+                message_text: fullResponse,
+              },
+            },
+          ] as const;
+
+          await ctx.answerInlineQuery(result, { cache_time: 0 }); // Disable caching for real-time responses
+        },
+      });
+    } catch (error) {
+      console.error('Failed to run assistant stream:', error);
+      await ctx.answerInlineQuery([
+        {
+          type: 'article',
+          id: '1',
+          title: 'Error',
+          input_message_content: {
+            message_text: 'An unexpected error occurred.',
+          },
+        },
+      ]);
+    }
   }
 
   @On('message')
