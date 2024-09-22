@@ -12,6 +12,7 @@ import { TokenUsage } from '../assistant/interfaces/token-usage.interface';
 export class StreamProcessingService {
   private readonly logger = new Logger(StreamProcessingService.name);
   private tokenUsage: TokenUsage | undefined;
+  private toolCallMade = false;
 
   constructor(
     private readonly localizationService: LocalizationService,
@@ -27,6 +28,7 @@ export class StreamProcessingService {
     const responseMessage = '';
     const lastSentMessage = '';
     this.tokenUsage = undefined;
+    this.toolCallMade = false;
 
     conversationObservable.subscribe({
       next: (update) =>
@@ -38,7 +40,13 @@ export class StreamProcessingService {
           lastSentMessage,
           user.languageCode,
         ),
-      complete: () => this.handleStreamComplete(user, responseMessage),
+      complete: () =>
+        this.handleStreamComplete(
+          user,
+          responseMessage,
+          ctx,
+          placeholderMessageId,
+        ),
       error: (error) =>
         this.handleStreamError(
           error,
@@ -73,6 +81,7 @@ export class StreamProcessingService {
         languageCode,
       );
     } else if (update.type === MessageType.TOOL_CALL) {
+      this.toolCallMade = true;
       this.sendToolMessage(
         ctx,
         placeholderMessageId,
@@ -133,7 +142,25 @@ export class StreamProcessingService {
   private async handleStreamComplete(
     user: User,
     responseMessage: string,
+    ctx: Context,
+    placeholderMessageId: number,
   ): Promise<void> {
+    if (this.toolCallMade && responseMessage.trim() === '') {
+      // If a tool call was made but no response was generated, send a default message
+      const defaultMessage = this.localizationService.translate(
+        TranslationKey.NO_RESULTS_FROM_TOOL,
+        user.languageCode,
+      );
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        placeholderMessageId,
+        null,
+        defaultMessage,
+        { parse_mode: 'Markdown' },
+      );
+      responseMessage = defaultMessage;
+    }
+
     const tokensToSpend =
       this.tokenUsage?.totalTokens ??
       this.calculateActualTokenUsage(responseMessage);

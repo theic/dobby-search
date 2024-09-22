@@ -7,7 +7,7 @@
   "insufficientTokens": "Вибачте, у вас недостатньо токенів для цього запиту. Будь ласка, додайте більше токенів, щоб продовжити.",
   "currentBalance": "Ваш поточний баланс токенів: {balance}",
   "recentTransactions": "Останні транзакції:",
-  "buyTokensUsage": "Використання: /buy_tokens <кільксть>",
+  "buyTokensUsage": "Використання: /buy_tokens <кількість>",
   "buyTokensTitle": "Купити токени",
   "buyTokensDescription": "Купити {amount} токенів для вашого облікового запису",
   "buyTokensSuccess": "Успішно придбано {amount} токенів!",
@@ -16,6 +16,6 @@
   "errorProcessingMessage": "Виникла помилка при обробці вашого повідомлення. Будь ласка, спробуйте ще раз.",
   "toolAnswerReceived": "Обробка зовнішніх даних...",
   "toolCallInitiated": "Доступ до додаткової інформації...",
-  "AGENT_THINKING": "Агент думає...",
-  "agentThinking": "Агент думає..."
+  "agentThinking": "Агент думає...",
+  "noResultsFromTool": "Інструмент не повернув жодних результатів. Спробуйте переформулювати ваш запит."
 }

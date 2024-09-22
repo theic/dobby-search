@@ -16,4 +16,5 @@ export enum TranslationKey {
   TOOL_ANSWER_RECEIVED = 'toolAnswerReceived',
   TOOL_CALL_INITIATED = 'toolCallInitiated',
   AGENT_THINKING = 'agentThinking',
+  NO_RESULTS_FROM_TOOL = 'noResultsFromTool',
 }

@@ -16,5 +16,6 @@
   "errorProcessingMessage": "Hubo un error al procesar tu mensaje. Por favor, inténtalo de nuevo.",
   "toolAnswerReceived": "Procesando datos externos...",
   "toolCallInitiated": "Accediendo a información adicional...",
-  "agentThinking": "Agente pensando..."
+  "agentThinking": "Agente pensando...",
+  "noResultsFromTool": "La herramienta no devolvió ningún resultado. Por favor, intenta reformular tu solicitud."
 }
